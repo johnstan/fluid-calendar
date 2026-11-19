@@ -8,7 +8,12 @@ const config = {
   transform: {
     // isolatedModules keeps jest memory bounded: type-checking is covered by
     // `tsc --noEmit`, so tests only need transpilation.
-    "^.+\\.tsx?$": ["ts-jest", { isolatedModules: true }],
+    // jsx: Next's tsconfig uses "preserve"; tests need JSX compiled so
+    // .tsx modules (e.g. components) can be imported.
+    "^.+\\.tsx?$": [
+      "ts-jest",
+      { isolatedModules: true, tsconfig: { jsx: "react-jsx" } },
+    ],
   },
 };
 

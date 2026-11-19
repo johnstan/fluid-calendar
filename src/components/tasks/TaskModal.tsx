@@ -21,7 +21,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 
 import { format, newDate } from "@/lib/date-utils";
 import { RecurrenceConverterFactory } from "@/lib/task-sync/recurrence/recurrence-converter-factory";
@@ -39,6 +38,8 @@ import {
   TaskStatus,
   TimePreference,
 } from "@/types/task";
+
+import { DescriptionEditor } from "./DescriptionEditor";
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -271,11 +272,10 @@ export function TaskModal({
 
           <div>
             <Label htmlFor="description">Description</Label>
-            <Textarea
+            <DescriptionEditor
               id="description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
+              onChange={setDescription}
             />
           </div>
 
