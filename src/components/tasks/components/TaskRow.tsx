@@ -18,6 +18,10 @@ import {
 } from "@/components/ui/select";
 
 import { format, newDate } from "@/lib/date-utils";
+import {
+  describeTaskRecurrence,
+  describeTaskRecurrenceShort,
+} from "@/lib/task-recurrence";
 import { cn } from "@/lib/utils";
 
 import { Task, TaskStatus } from "@/types/task";
@@ -157,10 +161,15 @@ export function TaskRow({
           )}
 
           {task.isRecurring && (
-            <HiRefresh
-              className="h-4 w-4 shrink-0 text-blue-500"
-              title="Recurring task"
-            />
+            <span
+              className="inline-flex shrink-0 items-center gap-1 text-xs text-blue-500"
+              title={
+                describeTaskRecurrence(task.recurrenceRule) ?? "Recurring task"
+              }
+            >
+              <HiRefresh className="h-4 w-4" />
+              {describeTaskRecurrenceShort(task.recurrenceRule)}
+            </span>
           )}
           {task.isAutoScheduled && (
             <HiClock

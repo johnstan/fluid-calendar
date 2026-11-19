@@ -41,6 +41,7 @@ import {
 } from "@/types/task";
 
 import { DescriptionEditor } from "./DescriptionEditor";
+import { RecurrenceEditor } from "./RecurrenceEditor";
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -204,6 +205,19 @@ export function TaskModal({
       setTimeout(() => titleInputRef.current?.focus(), 100);
     }
   }, [isOpen]);
+
+  // Rule in standard RRule form for the editor (converts provider formats)
+  const standardRecurrenceRule = (() => {
+    if (!recurrenceRule) return undefined;
+    try {
+      return getStandardRRule({
+        recurrenceRule,
+        source: task?.source,
+      } as Task).toString();
+    } catch {
+      return recurrenceRule;
+    }
+  })();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -601,93 +615,11 @@ export function TaskModal({
               </div>
             )}
             {isRecurring && (
-              <div className="mt-2 space-y-3 pl-6">
-                <div>
-                  <Label>Repeat every</Label>
-                  <div className="mt-1 flex items-center gap-2">
-                    <Input
-                      type="number"
-                      min="1"
-                      value={
-                        recurrenceRule
-                          ? getStandardRRule({
-                              recurrenceRule,
-                              source: task?.source,
-                            } as Task).options.interval || 1
-                          : 1
-                      }
-                      onChange={(e) => {
-                        const interval = parseInt(e.target.value) || 1;
-                        const currentRule = recurrenceRule
-                          ? getStandardRRule({
-                              recurrenceRule,
-                              source: task?.source,
-                            } as Task)
-                          : new RRule({
-                              freq: RRule.WEEKLY,
-                              interval: 1,
-                              byweekday: [RRule.MO],
-                            });
-                        setRecurrenceRule(
-                          new RRule({
-                            ...currentRule.options,
-                            interval,
-                          }).toString()
-                        );
-                      }}
-                      className="w-20"
-                    />
-                    <Select
-                      value={
-                        recurrenceRule
-                          ? getStandardRRule({
-                              recurrenceRule,
-                              source: task?.source,
-                            } as Task).options.freq.toString()
-                          : RRule.WEEKLY.toString()
-                      }
-                      onValueChange={(value) => {
-                        const freq = parseInt(value);
-                        const currentRule = recurrenceRule
-                          ? getStandardRRule({
-                              recurrenceRule,
-                              source: task?.source,
-                            } as Task)
-                          : new RRule({
-                              freq: RRule.WEEKLY,
-                              interval: 1,
-                              byweekday: [RRule.MO],
-                            });
-                        setRecurrenceRule(
-                          new RRule({
-                            ...currentRule.options,
-                            freq,
-                            byweekday:
-                              freq === RRule.WEEKLY ? [RRule.MO] : null,
-                          }).toString()
-                        );
-                      }}
-                    >
-                      <SelectTrigger className="w-[110px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={RRule.DAILY.toString()}>
-                          days
-                        </SelectItem>
-                        <SelectItem value={RRule.WEEKLY.toString()}>
-                          weeks
-                        </SelectItem>
-                        <SelectItem value={RRule.MONTHLY.toString()}>
-                          months
-                        </SelectItem>
-                        <SelectItem value={RRule.YEARLY.toString()}>
-                          years
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+              <div className="mt-2 pl-6">
+                <RecurrenceEditor
+                  value={standardRecurrenceRule}
+                  onChange={setRecurrenceRule}
+                />
               </div>
             )}
           </div>

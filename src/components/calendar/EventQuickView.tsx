@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { HiCheck, HiPencil, HiTrash } from "react-icons/hi";
+import { HiCheck, HiPencil, HiRefresh, HiTrash } from "react-icons/hi";
 import {
   IoCalendarOutline,
   IoFlagOutline,
@@ -20,6 +20,7 @@ import {
 
 import { format, isFutureDate, newDate } from "@/lib/date-utils";
 import { MarkdownLite, toggleChecklistLine } from "@/lib/markdown-lite";
+import { describeTaskRecurrence } from "@/lib/task-recurrence";
 import { isTaskOverdue } from "@/lib/task-utils";
 import { cn } from "@/lib/utils";
 
@@ -265,6 +266,15 @@ export function EventQuickView({
 
           {isTask && taskItem && (
             <div className="space-y-2 text-sm text-muted-foreground">
+              {taskItem.isRecurring &&
+                describeTaskRecurrence(taskItem.recurrenceRule) && (
+                  <div className="flex items-center gap-2">
+                    <HiRefresh className="h-4 w-4 flex-shrink-0" />
+                    <span>
+                      {describeTaskRecurrence(taskItem.recurrenceRule)}
+                    </span>
+                  </div>
+                )}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <IoTimeOutline className="h-4 w-4 flex-shrink-0" />
