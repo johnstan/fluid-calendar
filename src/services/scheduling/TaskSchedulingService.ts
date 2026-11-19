@@ -159,6 +159,15 @@ export async function scheduleAllTasksForUser(
     // Initialize scheduling service with settings
     const schedulingService = new SchedulingService(userSettings);
 
+    // Remember where each task was, so moved tasks that already have a pushed
+    // calendar block can be flagged for an update afterwards
+    const previousSlots = new Map(
+      tasksToSchedule.map((task) => [
+        task.id,
+        `${task.scheduledStart?.getTime() ?? ""}-${task.scheduledEnd?.getTime() ?? ""}`,
+      ])
+    );
+
     // Clear existing schedules for non-locked tasks
     await prisma.task.updateMany({
       where: {
@@ -179,6 +188,30 @@ export async function scheduleAllTasksForUser(
       [...tasksToSchedule, ...lockedTasks],
       userId
     );
+
+    // Tasks with a pushed calendar block that moved (or lost their slot) need
+    // that block updated or removed; repushDirtyBlocks picks these up
+    const pushedTasks = await prisma.task.findMany({
+      where: {
+        id: { in: tasksToSchedule.map((task) => task.id) },
+        userId,
+        blockEventId: { not: null },
+      },
+      select: { id: true, scheduledStart: true, scheduledEnd: true },
+    });
+    const movedIds = pushedTasks
+      .filter(
+        (task) =>
+          previousSlots.get(task.id) !==
+          `${task.scheduledStart?.getTime() ?? ""}-${task.scheduledEnd?.getTime() ?? ""}`
+      )
+      .map((task) => task.id);
+    if (movedIds.length > 0) {
+      await prisma.task.updateMany({
+        where: { id: { in: movedIds }, userId },
+        data: { blockDirty: true },
+      });
+    }
 
     // Update the lastScheduled timestamp for all tasks
     await prisma.task.updateMany({

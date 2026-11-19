@@ -1,4 +1,5 @@
 import { GaxiosError } from "gaxios";
+
 import {
   createGoogleEvent,
   deleteGoogleEvent,
@@ -8,6 +9,33 @@ import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 const LOG_SOURCE = "task-block-push";
+
+// Description written on every pushed block; identifies events we own when
+// cleaning up orphans, so the user's own events in that calendar are kept.
+export const TASK_BLOCK_DESCRIPTION = "Scheduled by FluidCalendar";
+
+// Per-task serialisation. Without it, two pushes for a task that has no event
+// yet (e.g. overlapping Auto Schedule runs) both create an event and only the
+// last ID is kept, leaving the other as a permanent orphan in the calendar.
+const taskLocks = new Map<string, Promise<void>>();
+
+async function withTaskLock<T>(
+  taskId: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  const previous = taskLocks.get(taskId) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => (release = resolve));
+  const chained = previous.then(() => current);
+  taskLocks.set(taskId, chained);
+  await previous;
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (taskLocks.get(taskId) === chained) taskLocks.delete(taskId);
+  }
+}
 
 /**
  * Detects if a GaxiosError is a 404/410 (Not Found / Gone).
@@ -26,6 +54,10 @@ function isGoogleEventNotFound(error: unknown): boolean {
  * Handles feed changes (delete from old, create on new).
  */
 export async function pushTaskBlock(userId: string, taskId: string) {
+  return withTaskLock(taskId, () => pushTaskBlockUnlocked(userId, taskId));
+}
+
+async function pushTaskBlockUnlocked(userId: string, taskId: string) {
   try {
     // Load task and user settings in parallel
     const [task, settings, userSettings] = await Promise.all([
@@ -151,7 +183,13 @@ export async function pushTaskBlock(userId: string, taskId: string) {
       // Check if feed changed
       if (task.blockFeedId !== settings.pushTasksFeedId) {
         // Feed changed: delete from old, create on new
-        await deleteEventFromFeed(userId, taskId, oldAccountId, oldCalendarId, task.blockEventId);
+        await deleteEventFromFeed(
+          userId,
+          taskId,
+          oldAccountId,
+          oldCalendarId,
+          task.blockEventId
+        );
         await createNewEvent(
           userId,
           taskId,
@@ -175,12 +213,22 @@ export async function pushTaskBlock(userId: string, taskId: string) {
     } else if (!shouldExist && task.blockEventId) {
       // Delete existing event
       if (oldAccountId && oldCalendarId) {
-        await deleteEventFromFeed(userId, taskId, oldAccountId, oldCalendarId, task.blockEventId);
+        await deleteEventFromFeed(
+          userId,
+          taskId,
+          oldAccountId,
+          oldCalendarId,
+          task.blockEventId
+        );
       } else {
         // Old feed info missing; clear the task state
         logger.warn(
           `Cannot delete event: old feed info missing`,
-          { taskId, blockEventId: task.blockEventId, blockFeedId: task.blockFeedId },
+          {
+            taskId,
+            blockEventId: task.blockEventId,
+            blockFeedId: task.blockFeedId,
+          },
           LOG_SOURCE
         );
         await prisma.task.update({
@@ -212,7 +260,11 @@ export async function pushTaskBlock(userId: string, taskId: string) {
 async function createNewEvent(
   userId: string,
   taskId: string,
-  task: { title: string; scheduledStart: Date | null; scheduledEnd: Date | null },
+  task: {
+    title: string;
+    scheduledStart: Date | null;
+    scheduledEnd: Date | null;
+  },
   accountId: string,
   calendarId: string,
   feedId: string,
@@ -232,7 +284,7 @@ async function createNewEvent(
 
     const event = await createGoogleEvent(accountId, userId, calendarId, {
       title: task.title,
-      description: "Scheduled by FluidCalendar",
+      description: TASK_BLOCK_DESCRIPTION,
       start: task.scheduledStart!,
       end: task.scheduledEnd!,
       timeZone,
@@ -279,7 +331,12 @@ async function createNewEvent(
 async function updateExistingEvent(
   userId: string,
   taskId: string,
-  task: { title: string; blockEventId: string | null; scheduledStart: Date | null; scheduledEnd: Date | null },
+  task: {
+    title: string;
+    blockEventId: string | null;
+    scheduledStart: Date | null;
+    scheduledEnd: Date | null;
+  },
   accountId: string,
   calendarId: string,
   timeZone?: string
@@ -299,7 +356,7 @@ async function updateExistingEvent(
 
     await updateGoogleEvent(accountId, userId, calendarId, task.blockEventId!, {
       title: task.title,
-      description: "Scheduled by FluidCalendar",
+      description: TASK_BLOCK_DESCRIPTION,
       start: task.scheduledStart || undefined,
       end: task.scheduledEnd || undefined,
       mode: "single",
@@ -388,7 +445,13 @@ async function deleteEventFromFeed(
       LOG_SOURCE
     );
 
-    await deleteGoogleEvent(accountId, userId, calendarId, blockEventId, "single");
+    await deleteGoogleEvent(
+      accountId,
+      userId,
+      calendarId,
+      blockEventId,
+      "single"
+    );
 
     await prisma.task.update({
       where: { id: taskId },
@@ -498,7 +561,13 @@ export async function deleteTaskBlockEvent(
       return;
     }
 
-    await deleteGoogleEvent(feed.accountId!, userId, feed.url, blockEventId, "single");
+    await deleteGoogleEvent(
+      feed.accountId!,
+      userId,
+      feed.url,
+      blockEventId,
+      "single"
+    );
 
     logger.info(
       `Deleted orphaned calendar event`,
@@ -553,7 +622,11 @@ export async function removeAllTaskBlocks(userId: string) {
     // Delete each event and clear task state
     for (const task of tasksWithEvents) {
       if (task.blockFeedId) {
-        await deleteTaskBlockEvent(userId, task.blockEventId!, task.blockFeedId);
+        await deleteTaskBlockEvent(
+          userId,
+          task.blockEventId!,
+          task.blockFeedId
+        );
       } else {
         logger.warn(
           `Task has event but no feed ID; clearing local state only`,
@@ -639,6 +712,9 @@ export async function repushDirtyBlocks(userId: string) {
       await pushTaskBlock(userId, task.id);
     }
 
+    // Remove pushed blocks that no task points at any more
+    await cleanupOrphanTaskBlocks(userId);
+
     logger.info(
       `Completed repush of dirty blocks`,
       { userId, count: tasks.length },
@@ -651,6 +727,87 @@ export async function repushDirtyBlocks(userId: string) {
         userId,
         error: error instanceof Error ? error.message : String(error),
       },
+      LOG_SOURCE
+    );
+  }
+}
+
+/**
+ * Deletes events in the push calendar that were created by FluidCalendar
+ * (marked with TASK_BLOCK_DESCRIPTION) but are no longer referenced by any
+ * task - e.g. duplicates from overlapping pushes. Events without the marker
+ * are never touched.
+ */
+export async function cleanupOrphanTaskBlocks(userId: string) {
+  try {
+    const settings = await prisma.autoScheduleSettings.findUnique({
+      where: { userId },
+    });
+    if (!settings?.pushTasksToCalendar || !settings.pushTasksFeedId) return;
+
+    const feed = await prisma.calendarFeed.findUnique({
+      where: { id: settings.pushTasksFeedId },
+    });
+    if (!feed || feed.type !== "GOOGLE" || !feed.accountId || !feed.url) {
+      return;
+    }
+
+    const referenced = new Set(
+      (
+        await prisma.task.findMany({
+          where: { userId, blockEventId: { not: null } },
+          select: { blockEventId: true },
+        })
+      ).map((t) => t.blockEventId)
+    );
+
+    const events = await prisma.calendarEvent.findMany({
+      where: {
+        feedId: feed.id,
+        description: TASK_BLOCK_DESCRIPTION,
+        externalEventId: { not: null },
+      },
+      select: { id: true, externalEventId: true },
+    });
+    const orphans = events.filter((e) => !referenced.has(e.externalEventId));
+    if (orphans.length === 0) return;
+
+    let deleted = 0;
+    for (const orphan of orphans) {
+      try {
+        await deleteGoogleEvent(
+          feed.accountId,
+          userId,
+          feed.url,
+          orphan.externalEventId!,
+          "single"
+        );
+      } catch (error) {
+        if (!isGoogleEventNotFound(error)) {
+          logger.error(
+            `Failed to delete orphaned task block`,
+            {
+              eventId: orphan.externalEventId,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            LOG_SOURCE
+          );
+          continue;
+        }
+      }
+      await prisma.calendarEvent.delete({ where: { id: orphan.id } });
+      deleted++;
+    }
+
+    logger.info(
+      `Removed orphaned task blocks`,
+      { userId, found: orphans.length, deleted },
+      LOG_SOURCE
+    );
+  } catch (error) {
+    logger.error(
+      `Error in cleanupOrphanTaskBlocks`,
+      { userId, error: error instanceof Error ? error.message : String(error) },
       LOG_SOURCE
     );
   }

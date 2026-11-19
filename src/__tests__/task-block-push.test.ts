@@ -7,6 +7,8 @@ import {
 } from "@/lib/google-calendar";
 import { prisma } from "@/lib/prisma";
 import {
+  TASK_BLOCK_DESCRIPTION,
+  cleanupOrphanTaskBlocks,
   pushTaskBlock,
   removeAllTaskBlocks,
   repushDirtyBlocks,
@@ -34,6 +36,10 @@ jest.mock("@/lib/prisma", () => ({
     calendarFeed: {
       findUnique: jest.fn(),
     },
+    calendarEvent: {
+      findMany: jest.fn(),
+      delete: jest.fn(),
+    },
   },
 }));
 
@@ -55,6 +61,7 @@ const mockPrisma = prisma as unknown as {
   autoScheduleSettings: { findUnique: jest.Mock };
   userSettings: { findUnique: jest.Mock };
   calendarFeed: { findUnique: jest.Mock };
+  calendarEvent: { findMany: jest.Mock; delete: jest.Mock };
 };
 const mockCreate = createGoogleEvent as jest.Mock;
 const mockUpdate = updateGoogleEvent as jest.Mock;
@@ -108,6 +115,8 @@ function googleFeed(id = "feed-1", url = "gcal-id-1") {
 beforeEach(() => {
   jest.clearAllMocks();
   mockPrisma.task.update.mockResolvedValue({});
+  mockPrisma.calendarEvent.findMany.mockResolvedValue([]);
+  mockPrisma.calendarEvent.delete.mockResolvedValue({});
   mockPrisma.userSettings.findUnique.mockResolvedValue({
     userId: USER,
     timeZone: "America/Chicago",
@@ -406,5 +415,97 @@ describe("repushDirtyBlocks", () => {
     // each task flows through pushTaskBlock → task.findUnique called per task
     expect(mockPrisma.task.findUnique).toHaveBeenCalledTimes(2);
     expect(mockCreate).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("concurrent pushes", () => {
+  test("two overlapping pushes for an unpushed task create only one event", async () => {
+    // A tiny in-memory task row, so the second push sees what the first wrote
+    let row = baseTask();
+    mockPrisma.task.findUnique.mockImplementation(async () => ({ ...row }));
+    mockPrisma.task.update.mockImplementation(
+      async ({ data }: { data: Record<string, unknown> }) => {
+        row = { ...row, ...data };
+        return row;
+      }
+    );
+    mockPrisma.autoScheduleSettings.findUnique.mockResolvedValue(settings());
+    mockPrisma.calendarFeed.findUnique.mockResolvedValue(googleFeed());
+    mockCreate.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 20)); // Google round-trip
+      return { id: "evt-1" };
+    });
+    mockUpdate.mockResolvedValue({});
+
+    await Promise.all([
+      pushTaskBlock(USER, "task-1"),
+      pushTaskBlock(USER, "task-1"),
+    ]);
+
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(row.blockEventId).toBe("evt-1");
+  });
+});
+
+describe("cleanupOrphanTaskBlocks", () => {
+  beforeEach(() => {
+    mockPrisma.autoScheduleSettings.findUnique.mockResolvedValue(settings());
+    mockPrisma.calendarFeed.findUnique.mockResolvedValue(googleFeed());
+    mockPrisma.task.findMany.mockResolvedValue([{ blockEventId: "evt-kept" }]);
+    mockPrisma.calendarEvent.findMany.mockResolvedValue([
+      { id: "row-kept", externalEventId: "evt-kept" },
+      { id: "row-orphan", externalEventId: "evt-orphan" },
+    ]);
+    mockDelete.mockResolvedValue(undefined);
+  });
+
+  test("deletes pushed blocks no task references, keeps referenced ones", async () => {
+    await cleanupOrphanTaskBlocks(USER);
+
+    expect(mockDelete).toHaveBeenCalledTimes(1);
+    expect(mockDelete).toHaveBeenCalledWith(
+      "acct-1",
+      USER,
+      "gcal-id-1",
+      "evt-orphan",
+      "single"
+    );
+    expect(mockPrisma.calendarEvent.delete).toHaveBeenCalledWith({
+      where: { id: "row-orphan" },
+    });
+  });
+
+  test("only looks at events carrying the FluidCalendar marker", async () => {
+    await cleanupOrphanTaskBlocks(USER);
+
+    expect(mockPrisma.calendarEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          feedId: "feed-1",
+          description: TASK_BLOCK_DESCRIPTION,
+        }),
+      })
+    );
+  });
+
+  test("treats an already-deleted event as cleaned up", async () => {
+    mockDelete.mockRejectedValue(gaxios404());
+
+    await cleanupOrphanTaskBlocks(USER);
+
+    expect(mockPrisma.calendarEvent.delete).toHaveBeenCalledWith({
+      where: { id: "row-orphan" },
+    });
+  });
+
+  test("does nothing when push is disabled", async () => {
+    mockPrisma.autoScheduleSettings.findUnique.mockResolvedValue(
+      settings({ pushTasksToCalendar: false })
+    );
+
+    await cleanupOrphanTaskBlocks(USER);
+
+    expect(mockPrisma.calendarEvent.findMany).not.toHaveBeenCalled();
+    expect(mockDelete).not.toHaveBeenCalled();
   });
 });
