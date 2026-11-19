@@ -156,8 +156,18 @@ export class SlotScorer {
       return baseScore * (1 - timePenalty);
     }
 
-    // For future tasks (unchanged)
-    const minutesToDeadline = differenceInMinutes(task.dueDate, slot.start);
+    // For future tasks. Due dates are date-only (stored as 00:00 UTC), so the
+    // deadline is the END of the due day, not its start.
+    const effectiveDue = new Date(task.dueDate.getTime() + 24 * 60 * 60 * 1000);
+    const minutesToDeadline = differenceInMinutes(effectiveDue, slot.start);
+
+    if (minutesToDeadline < 0) {
+      // Slot is after the deadline: penalise lateness instead of rewarding it
+      // (previously this capped at 0.99, the same as a slot right before the deadline)
+      const daysLate = -minutesToDeadline / (24 * 60);
+      return Math.max(0, 0.3 - 0.3 * Math.min(1, daysLate / 7));
+    }
+
     const daysToDeadline = minutesToDeadline / (24 * 60);
     const score = Math.min(0.99, Math.exp(-daysToDeadline / 3));
 
