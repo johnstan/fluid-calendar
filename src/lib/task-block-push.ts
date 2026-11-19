@@ -48,6 +48,97 @@ function isGoogleEventNotFound(error: unknown): boolean {
   return false;
 }
 
+/** Mirror a pushed update into the local CalendarEvent copy (non-fatal). */
+async function updateLocalBlockRow(
+  externalEventId: string,
+  data: { title: string; start: Date | null; end: Date | null }
+) {
+  try {
+    await prisma.calendarEvent.updateMany({
+      where: { externalEventId },
+      data: {
+        title: data.title,
+        ...(data.start && { start: data.start }),
+        ...(data.end && { end: data.end }),
+      },
+    });
+  } catch (error) {
+    logger.warn(
+      `Could not update local copy of task block`,
+      {
+        externalEventId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      LOG_SOURCE
+    );
+  }
+}
+
+/** Remove the local CalendarEvent copy of a deleted block (non-fatal). */
+async function deleteLocalBlockRow(externalEventId: string) {
+  try {
+    await prisma.calendarEvent.deleteMany({ where: { externalEventId } });
+  } catch (error) {
+    logger.warn(
+      `Could not delete local copy of task block`,
+      {
+        externalEventId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      LOG_SOURCE
+    );
+  }
+}
+
+/**
+ * Tasks whose pushed block no longer matches them: the task lost its slot or
+ * was completed, or the event's times differ from the task's scheduled times.
+ * Compares against our local copy of the push calendar; tasks whose event
+ * hasn't been synced locally yet are skipped.
+ */
+async function findOutOfSyncBlockTaskIds(
+  userId: string,
+  feedId: string
+): Promise<string[]> {
+  const tasks = await prisma.task.findMany({
+    where: { userId, blockEventId: { not: null }, blockFeedId: feedId },
+    select: {
+      id: true,
+      blockEventId: true,
+      scheduledStart: true,
+      scheduledEnd: true,
+      status: true,
+    },
+  });
+  if (tasks.length === 0) return [];
+
+  const events = await prisma.calendarEvent.findMany({
+    where: {
+      feedId,
+      externalEventId: { in: tasks.map((t) => t.blockEventId!) },
+    },
+    select: { externalEventId: true, start: true, end: true },
+  });
+  const byId = new Map(events.map((e) => [e.externalEventId, e]));
+  const TOLERANCE_MS = 60 * 1000;
+  const differs = (a: Date | null, b: Date) =>
+    !a ||
+    Math.abs(new Date(a).getTime() - new Date(b).getTime()) > TOLERANCE_MS;
+
+  return tasks
+    .filter((task) => {
+      const event = byId.get(task.blockEventId);
+      if (!event) return false;
+      if (!task.scheduledStart || !task.scheduledEnd) return true;
+      if (task.status === "completed") return true;
+      return (
+        differs(task.scheduledStart, event.start) ||
+        differs(task.scheduledEnd, event.end)
+      );
+    })
+    .map((task) => task.id);
+}
+
 /**
  * Pushes a task's scheduled block to Google Calendar.
  * Handles create, update, or delete of the calendar event based on current state.
@@ -363,6 +454,14 @@ async function updateExistingEvent(
       timeZone,
     });
 
+    // Keep our local copy of the event in step, so reconciliation sees the
+    // new times before the next calendar sync
+    await updateLocalBlockRow(task.blockEventId!, {
+      title: task.title,
+      start: task.scheduledStart,
+      end: task.scheduledEnd,
+    });
+
     await prisma.task.update({
       where: { id: taskId },
       data: { blockDirty: false },
@@ -452,6 +551,7 @@ async function deleteEventFromFeed(
       blockEventId,
       "single"
     );
+    await deleteLocalBlockRow(blockEventId);
 
     await prisma.task.update({
       where: { id: taskId },
@@ -568,6 +668,7 @@ export async function deleteTaskBlockEvent(
       blockEventId,
       "single"
     );
+    await deleteLocalBlockRow(blockEventId);
 
     logger.info(
       `Deleted orphaned calendar event`,
@@ -710,6 +811,25 @@ export async function repushDirtyBlocks(userId: string) {
     // Push each task sequentially
     for (const task of tasks) {
       await pushTaskBlock(userId, task.id);
+    }
+
+    // Also fix blocks that drifted out of step with their task (e.g. moved by
+    // an earlier run without being flagged), comparing against the calendar
+    if (settings.pushTasksFeedId) {
+      const pushed = new Set(tasks.map((t) => t.id));
+      const outOfSync = (
+        await findOutOfSyncBlockTaskIds(userId, settings.pushTasksFeedId)
+      ).filter((id) => !pushed.has(id));
+      for (const id of outOfSync) {
+        await pushTaskBlock(userId, id);
+      }
+      if (outOfSync.length) {
+        logger.info(
+          `Re-pushed out-of-sync task blocks`,
+          { userId, count: outOfSync.length },
+          LOG_SOURCE
+        );
+      }
     }
 
     // Remove pushed blocks that no task points at any more

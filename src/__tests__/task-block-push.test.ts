@@ -39,6 +39,8 @@ jest.mock("@/lib/prisma", () => ({
     calendarEvent: {
       findMany: jest.fn(),
       delete: jest.fn(),
+      updateMany: jest.fn(),
+      deleteMany: jest.fn(),
     },
   },
 }));
@@ -61,7 +63,12 @@ const mockPrisma = prisma as unknown as {
   autoScheduleSettings: { findUnique: jest.Mock };
   userSettings: { findUnique: jest.Mock };
   calendarFeed: { findUnique: jest.Mock };
-  calendarEvent: { findMany: jest.Mock; delete: jest.Mock };
+  calendarEvent: {
+    findMany: jest.Mock;
+    delete: jest.Mock;
+    updateMany: jest.Mock;
+    deleteMany: jest.Mock;
+  };
 };
 const mockCreate = createGoogleEvent as jest.Mock;
 const mockUpdate = updateGoogleEvent as jest.Mock;
@@ -117,6 +124,8 @@ beforeEach(() => {
   mockPrisma.task.update.mockResolvedValue({});
   mockPrisma.calendarEvent.findMany.mockResolvedValue([]);
   mockPrisma.calendarEvent.delete.mockResolvedValue({});
+  mockPrisma.calendarEvent.updateMany.mockResolvedValue({ count: 1 });
+  mockPrisma.calendarEvent.deleteMany.mockResolvedValue({ count: 1 });
   mockPrisma.userSettings.findUnique.mockResolvedValue({
     userId: USER,
     timeZone: "America/Chicago",
@@ -507,5 +516,115 @@ describe("cleanupOrphanTaskBlocks", () => {
 
     expect(mockPrisma.calendarEvent.findMany).not.toHaveBeenCalled();
     expect(mockDelete).not.toHaveBeenCalled();
+  });
+});
+
+describe("repushDirtyBlocks reconciliation", () => {
+  test("re-pushes a block whose event drifted from its task, even if not flagged", async () => {
+    // Not dirty, already has an event - but the event sits at the old time
+    const task = baseTask({
+      id: "t-moved",
+      blockEventId: "evt-old",
+      blockFeedId: "feed-1",
+    });
+    mockPrisma.task.findMany
+      .mockResolvedValueOnce([]) // dirty / newly scheduled: none
+      .mockResolvedValueOnce([task]) // tasks with a pushed block
+      .mockResolvedValue([{ blockEventId: "evt-old" }]); // orphan check
+    mockPrisma.calendarEvent.findMany
+      .mockResolvedValueOnce([
+        {
+          externalEventId: "evt-old",
+          start: new Date("2026-06-12T09:00:00Z"), // task is at 14:00
+          end: new Date("2026-06-12T10:00:00Z"),
+        },
+      ])
+      .mockResolvedValue([]);
+    mockPrisma.autoScheduleSettings.findUnique.mockResolvedValue(settings());
+    mockPrisma.task.findUnique.mockResolvedValue(task);
+    mockPrisma.calendarFeed.findUnique.mockResolvedValue(googleFeed());
+    mockUpdate.mockResolvedValue({});
+
+    await repushDirtyBlocks(USER);
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      "acct-1",
+      USER,
+      "gcal-id-1",
+      "evt-old",
+      expect.objectContaining({ start: task.scheduledStart })
+    );
+    // local copy updated so the next run sees it as in sync
+    expect(mockPrisma.calendarEvent.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { externalEventId: "evt-old" } })
+    );
+  });
+
+  test("leaves blocks that already match their task alone", async () => {
+    const task = baseTask({
+      id: "t-ok",
+      blockEventId: "evt-ok",
+      blockFeedId: "feed-1",
+    });
+    mockPrisma.task.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([task])
+      .mockResolvedValue([{ blockEventId: "evt-ok" }]);
+    mockPrisma.calendarEvent.findMany
+      .mockResolvedValueOnce([
+        {
+          externalEventId: "evt-ok",
+          start: task.scheduledStart,
+          end: task.scheduledEnd,
+        },
+      ])
+      .mockResolvedValue([]);
+    mockPrisma.autoScheduleSettings.findUnique.mockResolvedValue(settings());
+    mockPrisma.calendarFeed.findUnique.mockResolvedValue(googleFeed());
+
+    await repushDirtyBlocks(USER);
+
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockDelete).not.toHaveBeenCalled();
+  });
+
+  test("removes the block of a task that lost its slot", async () => {
+    const task = baseTask({
+      id: "t-unscheduled",
+      blockEventId: "evt-stale",
+      blockFeedId: "feed-1",
+      scheduledStart: null,
+      scheduledEnd: null,
+    });
+    mockPrisma.task.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([task])
+      .mockResolvedValue([]);
+    mockPrisma.calendarEvent.findMany
+      .mockResolvedValueOnce([
+        {
+          externalEventId: "evt-stale",
+          start: new Date("2026-06-12T09:00:00Z"),
+          end: new Date("2026-06-12T10:00:00Z"),
+        },
+      ])
+      .mockResolvedValue([]);
+    mockPrisma.autoScheduleSettings.findUnique.mockResolvedValue(settings());
+    mockPrisma.task.findUnique.mockResolvedValue(task);
+    mockPrisma.calendarFeed.findUnique.mockResolvedValue(googleFeed());
+    mockDelete.mockResolvedValue(undefined);
+
+    await repushDirtyBlocks(USER);
+
+    expect(mockDelete).toHaveBeenCalledWith(
+      "acct-1",
+      USER,
+      "gcal-id-1",
+      "evt-stale",
+      "single"
+    );
+    expect(mockPrisma.calendarEvent.deleteMany).toHaveBeenCalledWith({
+      where: { externalEventId: "evt-stale" },
+    });
   });
 });
