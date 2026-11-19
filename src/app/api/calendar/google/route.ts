@@ -8,61 +8,16 @@ import { authenticateRequest } from "@/lib/auth/api-auth";
 import { createAllDayDate, newDate, newDateFromYMD } from "@/lib/date-utils";
 import { createGoogleOAuthClient } from "@/lib/google";
 import { getGoogleCalendarClient } from "@/lib/google-calendar";
+import {
+  FeedNotFoundError,
+  fetchAllEvents,
+  processRecurrenceRule,
+  syncGoogleFeed,
+} from "@/lib/google-calendar-sync";
 import { prisma } from "@/lib/prisma";
 import { TokenManager } from "@/lib/token-manager";
 
 const LOG_SOURCE = "GoogleCalendarAPI";
-
-// Helper function to process recurrence rules
-function processRecurrenceRule(
-  recurrence: string[] | null | undefined,
-  startDate?: Date
-): string | undefined {
-  if (!recurrence || recurrence.length === 0) return undefined;
-
-  // Find the RRULE (should be the first one starting with RRULE:)
-  const rrule = recurrence.find((r) => r.startsWith("RRULE:"));
-  if (!rrule) return undefined;
-
-  // For yearly rules, ensure both BYMONTH and BYMONTHDAY are present
-  if (rrule.includes("FREQ=YEARLY") && startDate) {
-    const hasMonth = rrule.includes("BYMONTH=");
-    const hasMonthDay = rrule.includes("BYMONTHDAY=");
-
-    if (!hasMonth || !hasMonthDay) {
-      // Start with the base rule
-      let parts = rrule.split(";");
-
-      // Remove any existing incomplete parts we'll replace
-      parts = parts.filter(
-        (part) =>
-          !part.startsWith("BYMONTH=") && !part.startsWith("BYMONTHDAY=")
-      );
-
-      // Add the complete month and day
-      parts.push(`BYMONTH=${startDate.getMonth() + 1}`);
-      parts.push(`BYMONTHDAY=${startDate.getDate()}`);
-
-      return parts.join(";");
-    }
-  }
-
-  return rrule;
-}
-
-async function fetchAllEvents(
-  calendarClient: calendar_v3.Calendar,
-  params: calendar_v3.Params$Resource$Events$List
-): Promise<calendar_v3.Schema$Event[]> {
-  const items: calendar_v3.Schema$Event[] = [];
-  let pageToken: string | undefined = undefined;
-  do {
-    const res = await calendarClient.events.list({ ...params, pageToken });
-    items.push(...(res.data.items || []));
-    pageToken = res.data.nextPageToken as string | undefined;
-  } while (pageToken);
-  return items;
-}
 
 // Handle Google OAuth callback and account connection
 export async function GET(request: NextRequest) {
@@ -467,149 +422,14 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Get the feed and ensure it belongs to the current user
-    const feed = await prisma.calendarFeed.findUnique({
-      where: {
-        id: feedId,
-        userId,
-      },
-      include: { account: true },
-    });
+    await syncGoogleFeed(feedId, userId);
 
-    if (!feed || !feed.accountId || !feed.url) {
+    return NextResponse.json({ success: true });
+  } catch (error: unknown) {
+    if (error instanceof FeedNotFoundError) {
       return NextResponse.json({ error: "Feed not found" }, { status: 404 });
     }
 
-    // Create calendar client using account ID
-    const googleCalendarClient = await getGoogleCalendarClient(
-      feed.accountId,
-      userId
-    );
-    console.log("Fetching events from Google Calendar:", feed.url);
-
-    // Fetch all events with pagination
-    const events = await fetchAllEvents(googleCalendarClient, {
-      calendarId: feed.url,
-      timeMin: newDateFromYMD(newDate().getFullYear(), 0, 1).toISOString(),
-      timeMax: newDateFromYMD(newDate().getFullYear() + 1, 0, 1).toISOString(),
-      singleEvents: true,
-      orderBy: "startTime",
-    });
-
-    console.log(`Found ${events.length} events in Google Calendar`);
-
-    // Pre-fetch all master events for recurring events
-    const recurringEvents = events.filter(
-      (event) =>
-        event.recurringEventId && typeof event.recurringEventId === "string"
-    );
-    const masterEvents = new Map<string, string[]>();
-
-    for (const event of recurringEvents) {
-      const eventId = event.recurringEventId;
-      if (
-        eventId &&
-        !masterEvents.has(eventId) &&
-        typeof eventId === "string" &&
-        feed.url
-      ) {
-        try {
-          const masterEvent = await googleCalendarClient.events.get({
-            calendarId: feed.url as string,
-            eventId,
-          });
-          console.log("Master event", masterEvent.data.id);
-
-          const recurrence = masterEvent.data?.recurrence;
-          if (Array.isArray(recurrence)) {
-            masterEvents.set(eventId, recurrence);
-          }
-        } catch (error) {
-          console.error("Failed to fetch master event:", error);
-        }
-      }
-    }
-
-    // Now perform database operations in transaction
-    await prisma.$transaction(async (tx) => {
-      console.log("Deleting existing events");
-      await tx.calendarEvent.deleteMany({
-        where: { feedId },
-      });
-    });
-
-    // Create new events
-    await prisma.$transaction(async (tx) => {
-      console.log("Creating ${events.length} events");
-      for (const event of events) {
-        console.log("Processing event:", event.id);
-        
-        // Skip events without start time
-        if (!event.start?.dateTime && !event.start?.date) continue;
-
-        // Get recurrence rule from pre-fetched master events
-        if (event.recurringEventId) {
-          event.recurrence = masterEvents.get(event.recurringEventId);
-        }
-
-        const isAllDay = event.start ? !event.start.dateTime : false;
-
-        await tx.calendarEvent.create({
-          data: {
-            feedId: feed.id,
-            externalEventId: event.id,
-            title: event.summary || "Untitled Event",
-            description: event.description || "",
-            start: isAllDay
-              ? createAllDayDate(event.start.date || "")
-              : newDate(event.start.dateTime || event.start.date || ""),
-            end: isAllDay
-              ? createAllDayDate(event.end?.date || "")
-              : newDate(event.end?.dateTime || event.end?.date || ""),
-            location: event.location,
-            isRecurring: !!event.recurringEventId || !!event.recurrence,
-            recurringEventId: event.recurringEventId,
-            recurrenceRule: processRecurrenceRule(
-              event.recurrence,
-              event.start
-                ? newDate(event.start?.dateTime || event.start?.date || "")
-                : undefined
-            ),
-            allDay: isAllDay,
-            status: event.status,
-            sequence: event.sequence,
-            created: event.created ? newDate(event.created) : undefined,
-            lastModified: event.updated ? newDate(event.updated) : undefined,
-            organizer: event.organizer
-              ? {
-                  name: event.organizer.displayName,
-                  email: event.organizer.email,
-                }
-              : undefined,
-            attendees: event.attendees?.map(
-              (a: calendar_v3.Schema$EventAttendee) => ({
-                name: a.displayName,
-                email: a.email,
-                status: a.responseStatus,
-              })
-            ),
-          },
-        });
-      }
-
-      // Update feed sync status
-      await tx.calendarFeed.update({
-        where: { id: feedId, userId },
-        data: {
-          lastSync: newDate(),
-          error: null,
-        },
-      });
-    }, {timeout: 30000});
-
-    console.log("Successfully synced calendar:", feedId);
-    return NextResponse.json({ success: true });
-  } catch (error: unknown) {
     console.error("Failed to sync Google calendar:", error);
 
     // Check if it's an auth error
