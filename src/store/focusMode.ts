@@ -213,16 +213,16 @@ export const useFocusModeStore = create<FocusModeStore>()(
               LOG_SOURCE
             );
 
-            // Refresh tasks to make sure our tasks list is up-to-date
-            await taskStore.fetchTasks();
-            // Wait for celebration to finish (3 seconds)
+            // Refresh the task list in the background; the celebration
+            // overlay hides itself after a moment
+            void taskStore.fetchTasks();
             // Move to next task if available
             const queuedTaskIds = get().getQueuedTaskIds();
             const nextTaskId = queuedTaskIds[0];
             set({
               currentTaskId: nextTaskId || null,
             });
-            get().stopProcessing();
+            // The celebration overlay hides itself (ActionOverlay auto-hide)
           } catch (error) {
             // Show error overlay
             get().startProcessing(

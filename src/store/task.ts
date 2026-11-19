@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { isSaasEnabled } from "@/lib/config";
+import { logger } from "@/lib/logger";
 
 import {
   NewTag,
@@ -44,10 +45,20 @@ interface TaskState {
   // True while an Auto Schedule run is in progress (drives button state)
   isScheduling: boolean;
   triggerScheduleAllTasks: () => Promise<void>;
+  // Reschedule soon in the background (after a task change); never blocks
+  queueBackgroundSchedule: () => void;
 }
+
+const LOG_SOURCE = "TaskStore";
 
 // The Auto Schedule request currently running, shared by concurrent callers
 let inFlightSchedule: Promise<void> | null = null;
+
+// Reschedules after task changes run in the background, debounced so a
+// burst of edits causes one run; a change made while a run is in progress
+// gets a follow-up run so it isn't missed.
+const BACKGROUND_SCHEDULE_DELAY_MS = 1500;
+let backgroundTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const useTaskStore = create<TaskState>()(
   persist(
@@ -110,7 +121,7 @@ export const useTaskStore = create<TaskState>()(
           if (!response.ok) throw new Error("Failed to create task");
           const newTask = await response.json();
           set((state) => ({ tasks: [...state.tasks, newTask] }));
-          await get().triggerScheduleAllTasks();
+          get().queueBackgroundSchedule();
           return newTask;
         } catch (error) {
           set({ error: error as Error });
@@ -140,7 +151,7 @@ export const useTaskStore = create<TaskState>()(
               task.id === id ? updatedTask : task
             ),
           }));
-          await get().triggerScheduleAllTasks();
+          get().queueBackgroundSchedule();
           return updatedTask;
         } catch (error) {
           set({ error: error as Error });
@@ -160,7 +171,7 @@ export const useTaskStore = create<TaskState>()(
           set((state) => ({
             tasks: state.tasks.filter((task) => task.id !== id),
           }));
-          await get().triggerScheduleAllTasks();
+          get().queueBackgroundSchedule();
         } catch (error) {
           set({ error: error as Error });
           throw error;
@@ -263,7 +274,7 @@ export const useTaskStore = create<TaskState>()(
           set((state) => ({
             tasks: state.tasks.map((t) => (t.id === taskId ? updatedTask : t)),
           }));
-          await get().triggerScheduleAllTasks();
+          get().queueBackgroundSchedule();
           return updatedTask;
         } catch (error) {
           set({ error: error as Error });
@@ -289,7 +300,7 @@ export const useTaskStore = create<TaskState>()(
             )
           );
           await get().fetchTasks(); // Refresh task list
-          await get().triggerScheduleAllTasks();
+          get().queueBackgroundSchedule();
         } catch (error) {
           set({ error: error as Error });
           throw error;
@@ -298,8 +309,31 @@ export const useTaskStore = create<TaskState>()(
         }
       },
 
+      queueBackgroundSchedule: () => {
+        if (backgroundTimer) clearTimeout(backgroundTimer);
+        backgroundTimer = setTimeout(async () => {
+          backgroundTimer = null;
+          if (inFlightSchedule) {
+            // Let the current run finish, then run again with this change
+            inFlightSchedule
+              .catch(() => undefined)
+              .finally(() => get().queueBackgroundSchedule());
+            return;
+          }
+          try {
+            await get().triggerScheduleAllTasks();
+          } catch (error) {
+            logger.error(
+              "Background auto-schedule failed",
+              { error: error instanceof Error ? error.message : String(error) },
+              LOG_SOURCE
+            );
+          }
+        }, BACKGROUND_SCHEDULE_DELAY_MS);
+      },
+
       triggerScheduleAllTasks: async () => {
-        set({ loading: true, error: null });
+        set({ error: null });
         try {
           // For open source version, call scheduleAllTasks directly
           if (!isSaasEnabled) {
@@ -376,7 +410,7 @@ export const useTaskStore = create<TaskState>()(
         // after a task change): join it instead of starting a second one
         if (inFlightSchedule) return inFlightSchedule;
         inFlightSchedule = (async () => {
-          set({ loading: true, isScheduling: true, error: null });
+          set({ isScheduling: true, error: null });
           try {
             const response = await fetch("/api/tasks/schedule-all", {
               method: "POST",
@@ -405,7 +439,7 @@ export const useTaskStore = create<TaskState>()(
             set({ error: error as Error });
             throw error;
           } finally {
-            set({ loading: false, isScheduling: false });
+            set({ isScheduling: false });
           }
         })();
         try {

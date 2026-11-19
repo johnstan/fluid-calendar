@@ -60,8 +60,17 @@ export function ActionOverlay({
           });
         }, 250);
 
-        // Clean up interval
-        return () => clearInterval(interval);
+        // Auto-hide as well (returning early here used to skip the timer,
+        // leaving the celebration up until the caller finished its work)
+        const hideTimer =
+          autoHideDuration && onComplete
+            ? setTimeout(onComplete, autoHideDuration)
+            : null;
+
+        return () => {
+          clearInterval(interval);
+          if (hideTimer) clearTimeout(hideTimer);
+        };
       } catch (error) {
         logger.error("[ActionOverlay] Error triggering confetti", {
           error: error instanceof Error ? error.message : String(error),

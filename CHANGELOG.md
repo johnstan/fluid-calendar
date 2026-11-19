@@ -109,6 +109,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Creating, editing or completing a task (and changing calendar events) no longer waits for a full Auto Schedule run: the change saves immediately and tasks are rescheduled in the background (debounced, with a follow-up run if you change something mid-run; the Auto Schedule button shows progress)
+- Focus Mode completion celebration now hides after 1.5 s instead of staying up until the task list reloaded
 - Task blocks pushed to Google Calendar now follow rescheduling: when Auto Schedule moves or unschedules a task that already has a calendar block, the block is updated or removed instead of staying at the old time; after each run, any block whose event no longer matches its task (or whose task lost its slot) is corrected too. Overlapping pushes no longer create duplicate blocks, and orphaned FluidCalendar blocks (no task points at them) are removed after each Auto Schedule run; events without the FluidCalendar marker are never touched
 - Fixed deleting a single occurrence of a recurring Google Calendar event removing the wrong instance: single-occurrence deletes re-queried Google for the "next upcoming" instance (`timeMin: now`, `maxResults: 1`) and deleted that, so deleting a past or non-next row could silently delete a different (often future) occurrence. Single-mode deletion now targets the clicked occurrence directly. Affects all calendar views and pushed task blocks (#199)
 - Fixed the Tasks list so sorting by the Priority or Energy column orders rows by meaning (low < medium < high) instead of alphabetically by label; tasks with no priority/energy (including the "None" priority) sort to the end (#131)
