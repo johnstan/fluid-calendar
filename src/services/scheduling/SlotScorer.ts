@@ -165,11 +165,14 @@ export class SlotScorer {
       return baseScore * (1 - timePenalty);
     }
 
-    // Slot after the deadline: penalise lateness
+    // Slot after the deadline: a heavy negative score, so any on-time slot
+    // beats any late one even when every other factor favours the late slot
+    // (e.g. only the late slot has buffer time around it). If every slot is
+    // late, the least-late one still ranks first.
     const minutesToDeadline = differenceInMinutes(effectiveDue, slot.start);
     if (minutesToDeadline < 0) {
       const daysLate = -minutesToDeadline / (24 * 60);
-      return Math.max(0, 0.3 - 0.3 * Math.min(1, daysLate / 7));
+      return -2 - Math.min(1, daysLate / 7);
     }
 
     // Slot meets the deadline: score the task's urgency (how soon it is due

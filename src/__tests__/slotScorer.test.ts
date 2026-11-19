@@ -68,6 +68,25 @@ describe("SlotScorer", () => {
     expect(fri).toBeGreaterThan(sat);
   });
 
+  it("prefers a cramped on-time slot over a comfortable late one", () => {
+    // Water plants: due Saturday. Saturday's only free slots sit next to
+    // events (no buffer); Sunday has buffer time but misses the deadline.
+    const t = task({
+      preferredTime: null,
+      dueDate: new Date("2026-11-21T00:00:00Z"),
+      duration: 10,
+    });
+    const satNoBuffer = total(
+      { ...slot("2026-11-21T08:00:00Z", 10), hasBufferTime: false },
+      t
+    );
+    const sunWithBuffer = total(
+      { ...slot("2026-11-22T11:45:00Z", 10), hasBufferTime: true },
+      t
+    );
+    expect(satNoBuffer).toBeGreaterThan(sunWithBuffer);
+  });
+
   it("uses the user's timezone for the morning window", () => {
     const t = task({});
     // 12:30 Amsterdam = 11:30 UTC: outside 05-12 local, inside 05-12 UTC
