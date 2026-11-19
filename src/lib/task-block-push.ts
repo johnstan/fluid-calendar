@@ -100,11 +100,15 @@ async function findOutOfSyncBlockTaskIds(
   userId: string,
   feedId: string
 ): Promise<string[]> {
+  // Match on the event, not on task.blockFeedId: if the push calendar was
+  // removed and re-added in FluidCalendar, tasks still point at the old feed
+  // id although their events live in the (same) current calendar
   const tasks = await prisma.task.findMany({
-    where: { userId, blockEventId: { not: null }, blockFeedId: feedId },
+    where: { userId, blockEventId: { not: null } },
     select: {
       id: true,
       blockEventId: true,
+      blockFeedId: true,
       scheduledStart: true,
       scheduledEnd: true,
       status: true,
@@ -120,6 +124,23 @@ async function findOutOfSyncBlockTaskIds(
     select: { externalEventId: true, start: true, end: true },
   });
   const byId = new Map(events.map((e) => [e.externalEventId, e]));
+
+  // Repair stale feed references for events found in the current calendar
+  const staleFeed = tasks
+    .filter((t) => byId.has(t.blockEventId) && t.blockFeedId !== feedId)
+    .map((t) => t.id);
+  if (staleFeed.length > 0) {
+    await prisma.task.updateMany({
+      where: { id: { in: staleFeed }, userId },
+      data: { blockFeedId: feedId },
+    });
+    logger.info(
+      `Repaired task blocks pointing at a removed calendar feed`,
+      { userId, count: staleFeed.length },
+      LOG_SOURCE
+    );
+  }
+
   const TOLERANCE_MS = 60 * 1000;
   const differs = (a: Date | null, b: Date) =>
     !a ||

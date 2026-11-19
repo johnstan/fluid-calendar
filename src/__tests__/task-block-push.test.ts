@@ -26,6 +26,7 @@ jest.mock("@/lib/prisma", () => ({
       findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     autoScheduleSettings: {
       findUnique: jest.fn(),
@@ -59,6 +60,7 @@ const mockPrisma = prisma as unknown as {
     findUnique: jest.Mock;
     findMany: jest.Mock;
     update: jest.Mock;
+    updateMany: jest.Mock;
   };
   autoScheduleSettings: { findUnique: jest.Mock };
   userSettings: { findUnique: jest.Mock };
@@ -122,6 +124,7 @@ function googleFeed(id = "feed-1", url = "gcal-id-1") {
 beforeEach(() => {
   jest.clearAllMocks();
   mockPrisma.task.update.mockResolvedValue({});
+  mockPrisma.task.updateMany.mockResolvedValue({ count: 0 });
   mockPrisma.calendarEvent.findMany.mockResolvedValue([]);
   mockPrisma.calendarEvent.delete.mockResolvedValue({});
   mockPrisma.calendarEvent.updateMany.mockResolvedValue({ count: 1 });
@@ -626,5 +629,52 @@ describe("repushDirtyBlocks reconciliation", () => {
     expect(mockPrisma.calendarEvent.deleteMany).toHaveBeenCalledWith({
       where: { externalEventId: "evt-stale" },
     });
+  });
+});
+
+describe("repushDirtyBlocks with a re-added push calendar", () => {
+  test("repairs a stale feed reference and fixes the drifted block", async () => {
+    // Task still points at a feed that was removed and re-added (new id),
+    // but its event lives in the current push calendar at the old time
+    const task = baseTask({
+      id: "t-stale",
+      blockEventId: "evt-stale-feed",
+      blockFeedId: "feed-removed",
+    });
+    mockPrisma.task.findMany
+      .mockResolvedValueOnce([]) // dirty / newly scheduled
+      .mockResolvedValueOnce([task]) // tasks with a pushed block
+      .mockResolvedValue([{ blockEventId: "evt-stale-feed" }]); // orphan check
+    mockPrisma.calendarEvent.findMany
+      .mockResolvedValueOnce([
+        {
+          externalEventId: "evt-stale-feed",
+          start: new Date("2026-06-12T08:30:00Z"),
+          end: new Date("2026-06-12T09:00:00Z"),
+        },
+      ])
+      .mockResolvedValue([]);
+    mockPrisma.autoScheduleSettings.findUnique.mockResolvedValue(settings());
+    mockPrisma.calendarFeed.findUnique.mockResolvedValue(googleFeed());
+    // after the repair the task points at the current feed
+    mockPrisma.task.findUnique.mockResolvedValue({
+      ...task,
+      blockFeedId: "feed-1",
+    });
+    mockUpdate.mockResolvedValue({});
+
+    await repushDirtyBlocks(USER);
+
+    expect(mockPrisma.task.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["t-stale"] }, userId: USER },
+      data: { blockFeedId: "feed-1" },
+    });
+    expect(mockUpdate).toHaveBeenCalledWith(
+      "acct-1",
+      USER,
+      "gcal-id-1",
+      "evt-stale-feed",
+      expect.objectContaining({ start: task.scheduledStart })
+    );
   });
 });
