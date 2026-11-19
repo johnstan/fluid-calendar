@@ -8,7 +8,6 @@ import { DndProvider } from "@/components/dnd/DndProvider";
 import { AppNav } from "@/components/navigation/AppNav";
 import { VersionBadge } from "@/components/navigation/VersionBadge";
 import { PrivacyProvider } from "@/components/providers/PrivacyProvider";
-import { SessionProvider } from "@/components/providers/SessionProvider";
 import { SetupCheck } from "@/components/setup/SetupCheck";
 import { CommandPalette } from "@/components/ui/command-palette";
 import { CommandPaletteFab } from "@/components/ui/command-palette-fab";
@@ -67,33 +66,33 @@ export default function RootLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <SessionProvider>
-        <PrivacyProvider>
-          <DndProvider>
-            <SetupCheck />
-            <CommandPalette
-              open={commandPaletteOpen}
-              onOpenChange={setCommandPaletteOpen}
-            />
-            <CommandPaletteHint />
-            <CommandPaletteFab />
-            <ShortcutsModal
-              isOpen={shortcutsOpen}
-              onClose={() => setShortcutsOpen(false)}
-            />
-            <AppNav />
-            <main className="relative flex-1">
-              <NotificationProvider>{children}</NotificationProvider>
-            </main>
-            <footer className="flex-none border-t border-border bg-background px-4 py-2">
-              <div className="flex justify-end">
-                <VersionBadge />
-              </div>
-            </footer>
-            <Toaster />
-          </DndProvider>
-        </PrivacyProvider>
-      </SessionProvider>
+      {/* Session comes from the root <Providers>; a second SessionProvider here
+          left the menu showing "Sign In" after navigating from the homepage */}
+      <PrivacyProvider>
+        <DndProvider>
+          <SetupCheck />
+          <CommandPalette
+            open={commandPaletteOpen}
+            onOpenChange={setCommandPaletteOpen}
+          />
+          <CommandPaletteHint />
+          <CommandPaletteFab />
+          <ShortcutsModal
+            isOpen={shortcutsOpen}
+            onClose={() => setShortcutsOpen(false)}
+          />
+          <AppNav />
+          <main className="relative flex-1">
+            <NotificationProvider>{children}</NotificationProvider>
+          </main>
+          <footer className="flex-none border-t border-border bg-background px-4 py-2">
+            <div className="flex justify-end">
+              <VersionBadge />
+            </div>
+          </footer>
+          <Toaster />
+        </DndProvider>
+      </PrivacyProvider>
     </div>
   );
 }

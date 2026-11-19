@@ -42,10 +42,16 @@ const staticFileExtensions = [
  * Get the homepage setting directly from the API
  * This ensures we always have the most up-to-date setting
  */
-async function getHomepageSetting(request: NextRequest): Promise<boolean> {
+async function getHomepageSetting(): Promise<boolean> {
   try {
-    // Create a fetch request to our own API endpoint
-    const apiUrl = new URL("/api/settings/homepage-disabled", request.url);
+    // Call our own API on the container's loopback address. request.url can
+    // be the server's bind address (e.g. https://0.0.0.0:3000), which isn't
+    // reachable, and the public domain may not be reachable from inside the
+    // container either. INTERNAL_APP_URL overrides this if needed.
+    const internalOrigin =
+      process.env.INTERNAL_APP_URL ||
+      `http://127.0.0.1:${process.env.PORT || "3000"}`;
+    const apiUrl = new URL("/api/settings/homepage-disabled", internalOrigin);
     // Add a timestamp to prevent browser/CDN caching
     apiUrl.searchParams.set("t", Date.now().toString());
 
@@ -116,7 +122,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // Get the homepage setting directly from the API
-    const disableHomepage = await getHomepageSetting(request);
+    const disableHomepage = await getHomepageSetting();
 
     // If the homepage is disabled, check authentication and redirect accordingly
     if (disableHomepage) {
@@ -156,7 +162,11 @@ export async function middleware(request: NextRequest) {
   // If there's no token, redirect to the sign-in page
   if (!token) {
     const url = new URL("/auth/signin", request.url);
-    url.searchParams.set("callbackUrl", encodeURI(request.url));
+    // Relative callback, so it never points at the internal bind address
+    url.searchParams.set(
+      "callbackUrl",
+      request.nextUrl.pathname + request.nextUrl.search
+    );
     return NextResponse.redirect(url);
   }
 
