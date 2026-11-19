@@ -1,10 +1,10 @@
 services:
   app:
-    image: eibrahim/fluid-calendar:latest
+    image: johnstaunton/fluid-calendar:latest
     ports:
-      - "3000:3000"
+      - "8099:3000"
     env_file:
-      - .env
+      - stack.env
     # Pin the container's bind address and port so unrelated PORT/HOSTNAME values
     # in the operator's .env cannot change them (env_file is overridden by
     # environment). The Next.js standalone server binds to HOSTNAME:PORT, so this

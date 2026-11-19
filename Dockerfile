@@ -1,7 +1,6 @@
 # Base stage for both development and production
 FROM node:22-alpine3.19 AS base
 WORKDIR /app
-ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Install netcat
@@ -11,6 +10,7 @@ RUN apk add --no-cache netcat-openbsd
 FROM base AS development
 WORKDIR /app
 ENV NODE_ENV=development
+RUN apk add --no-cache python3 make g++
 COPY . .
 COPY package*.json ./
 RUN npm ci --legacy-peer-deps
@@ -21,6 +21,7 @@ CMD ["npm", "run", "dev"]
 # Production builder stage
 FROM base AS builder
 WORKDIR /app
+RUN apk add --no-cache python3 make g++
 COPY . .
 COPY package*.json ./
 RUN npm ci --include=dev --legacy-peer-deps
@@ -30,7 +31,6 @@ RUN npm run build
 # Production stage
 FROM base AS production
 WORKDIR /app
-
 ENV NODE_ENV=production
 
 COPY --from=builder /app/public ./public
