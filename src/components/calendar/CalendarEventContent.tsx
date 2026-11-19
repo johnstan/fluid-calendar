@@ -39,6 +39,8 @@ export const CalendarEventContent = memo(function CalendarEventContent({
   const endTime = eventInfo.event.end?.getTime() ?? 0;
   const startTime = eventInfo.event.start?.getTime() ?? 0;
   const duration = endTime - startTime;
+  // 15 minutes or less: one compact line, no gap, smaller icon
+  const isShort = duration > 0 && duration <= 15 * 60 * 1000;
 
   const isOverdue = isTask && isTaskOverdue({ dueDate, status });
 
@@ -68,8 +70,10 @@ export const CalendarEventContent = memo(function CalendarEventContent({
   return (
     <div
       data-testid={isTask ? "calendar-task" : "calendar-event"}
+      title={title}
       className={cn(
-        "flex h-full flex-col justify-start gap-1 overflow-hidden text-[11px]",
+        "flex h-full flex-col justify-start overflow-hidden text-[11px]",
+        isShort ? "gap-0 leading-none" : "gap-1",
         isTask && "border-l-4",
         isTask && "text-gray-700",
         isTask && priority && priorityColors[priority as Priority],
@@ -85,7 +89,7 @@ export const CalendarEventContent = memo(function CalendarEventContent({
     >
       <div className="flex w-full items-center gap-1.5">
         {isTask ? (
-          <IoCheckmarkCircle className="h-3.5 w-3.5 flex-shrink-0 text-current opacity-75" />
+          <IoCheckmarkCircle className={cn(isShort ? "h-3 w-3" : "h-3.5 w-3.5", "flex-shrink-0 text-current opacity-75")} />
         ) : showTimeChip ? (
           isRecurring ? (
             <IoRepeat
@@ -100,14 +104,15 @@ export const CalendarEventContent = memo(function CalendarEventContent({
             />
           )
         ) : isRecurring ? (
-          <IoRepeat className="h-3.5 w-3.5 flex-shrink-0 text-current opacity-75" />
+          <IoRepeat className={cn(isShort ? "h-3 w-3" : "h-3.5 w-3.5", "flex-shrink-0 text-current opacity-75")} />
         ) : (
-          <IoTimeOutline className="h-3.5 w-3.5 flex-shrink-0 text-current opacity-75" />
+          <IoTimeOutline className={cn(isShort ? "h-3 w-3" : "h-3.5 w-3.5", "flex-shrink-0 text-current opacity-75")} />
         )}
         <div className="min-w-0 flex-1">
           <div
             className={cn(
-              "calendar-event-title font-medium leading-snug",
+              "calendar-event-title font-medium",
+              isShort ? "leading-tight" : "leading-snug",
               duration <= 1800000 ? "truncate" : "line-clamp-2 break-words"
             )}
           >

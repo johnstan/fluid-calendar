@@ -330,6 +330,8 @@ export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
         eventResize={handleEventResize}
         eventResizableFromStart={true}
         snapDuration="00:15:00"
+        eventMinHeight={22}
+        eventShortHeight={36}
         dragRevertDuration={250}
       />
       {quickViewItem && (

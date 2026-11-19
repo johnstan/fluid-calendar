@@ -139,6 +139,12 @@
   @apply p-1;
 }
 
+/* Short time-grid events (FullCalendar adds this class below eventShortHeight):
+   drop the vertical padding so a 15-minute task still has room for its title */
+.fc .fc-timegrid-event-short .fc-event-main {
+  @apply px-1 py-px;
+}
+
 .fc .fc-daygrid-day-events {
   margin-bottom: 0;
 }

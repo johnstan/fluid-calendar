@@ -323,6 +323,8 @@ export function DayView({ currentDate, onDateClick }: DayViewProps) {
         eventResize={handleEventResize}
         eventResizableFromStart={true}
         snapDuration="00:15:00"
+        eventMinHeight={22}
+        eventShortHeight={36}
         dragRevertDuration={250}
       />
 
