@@ -29,6 +29,7 @@ import { useTaskStore } from "@/store/task";
 import { AttendeeStatus, CalendarEvent } from "@/types/calendar";
 import { Priority, Task, TaskStatus } from "@/types/task";
 
+import { EventAvailabilityToggle } from "./EventAvailabilityToggle";
 import { EventTravelEditor } from "./EventTravelEditor";
 
 interface Attendee {
@@ -231,6 +232,12 @@ export function EventQuickView({
               {!eventItem.allDay && (
                 <EventTravelEditor eventId={eventItem.id} />
               )}
+              <EventAvailabilityToggle
+                eventId={eventItem.id}
+                feedId={eventItem.feedId}
+                isFree={!!eventItem.isFree}
+                isRecurring={eventItem.isRecurring}
+              />
               {eventItem.attendees && eventItem.attendees.length > 0 && (
                 <div className="flex items-start gap-2">
                   <IoPeopleOutline className="mt-0.5 h-4 w-4 flex-shrink-0" />

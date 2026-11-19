@@ -140,6 +140,7 @@ export async function syncGoogleFeed(
         newDate(event.start.dateTime || event.start.date || "")
       ),
       allDay: isAllDay,
+      isFree: event.transparency === "transparent",
       status: event.status,
       sequence: event.sequence,
       created: event.created ? newDate(event.created) : undefined,

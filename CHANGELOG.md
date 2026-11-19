@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Busy/free for calendar events: free events (Google "Show as: Free", Outlook "Free") show faded with a dashed, hatched card and no longer block Auto Schedule. Change it from the event quick view (Busy | Free, optionally for all occurrences); Google events are updated in Google Calendar, Fluid's own calendars locally (needs the new `CalendarEvent.isFree` migration)
 - Recurring tasks: pick the days of the week a task repeats on (with Every day / Weekdays / Weekends shortcuts) and see a plain-English summary in the editor; the task list shows the days next to the repeat icon ("Mon, Wed", "Weekdays") and the calendar quick view shows "Repeats every week on …". Choosing weeks no longer silently resets the rule to Mondays only
 - Travel time for calendar events: set minutes before/after an event (or all occurrences of a recurring event) in the event quick view; Auto Schedule keeps that time free. Stored separately from synced events so it survives calendar re-syncs (needs the new `EventTravelTime` migration)
 - Phone layout: top navigation collapses to icons, calendar header wraps (short date, view switcher on its own row), calendar sidebar overlays instead of squeezing the grid, task page header/filters wrap and the project sidebar is hidden below tablet width, so pages no longer scroll sideways

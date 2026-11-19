@@ -36,6 +36,8 @@ export interface CalendarEvent {
   isRecurring: boolean;
   recurrenceRule?: string;
   allDay: boolean;
+  /** Busy/free: free events show as available and don't block scheduling */
+  isFree?: boolean;
   color?: string;
   // Additional fields for iCal support
   uid?: string; // Unique identifier from iCal

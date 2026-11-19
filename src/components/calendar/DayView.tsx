@@ -66,7 +66,9 @@ export function DayView({ currentDate, onDateClick }: DayViewProps) {
   const [quickViewItem, setQuickViewItem] = useState<CalendarEvent | Task>();
   const [isTask, setIsTask] = useState(false);
   const eventModalStore = useEventModalStore();
-  const [clickedElement, setClickedElement] = useState<HTMLElement | null>(null);
+  const [clickedElement, setClickedElement] = useState<HTMLElement | null>(
+    null
+  );
   const { handleEventDrop, handleEventResize } = useCalendarDragHandlers();
 
   // Update events when the calendar view changes
@@ -96,6 +98,7 @@ export function DayView({ currentDate, onDateClick }: DayViewProps) {
           allDay: item.allDay,
           classNames: [
             item.extendedProps?.isTask ? "calendar-task" : "calendar-event",
+            ...(item.isFree ? ["calendar-event-free"] : []),
           ],
           ...getEventEditability(item, feeds),
           extendedProps: {

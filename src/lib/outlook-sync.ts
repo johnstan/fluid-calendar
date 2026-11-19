@@ -117,6 +117,7 @@ export function createBaseEventData(
     isMaster,
     allDay: event.isAllDay || false,
     status: event.showAs || "busy",
+    isFree: event.showAs === "free",
     created: event.createdDateTime ? newDate(event.createdDateTime) : newDate(),
     lastModified: event.lastModifiedDateTime
       ? newDate(event.lastModifiedDateTime)

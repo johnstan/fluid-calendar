@@ -281,6 +281,7 @@ export async function POST(request: NextRequest) {
             ),
             recurringEventId: masterEventData.recurringEventId,
             allDay: isAllDay,
+            isFree: masterEventData.transparency === "transparent",
             status: masterEventData.status,
             sequence: masterEventData.sequence,
             created: masterEventData.created
@@ -355,6 +356,7 @@ export async function POST(request: NextRequest) {
                     : undefined
                 ),
             allDay: isAllDay,
+            isFree: event.transparency === "transparent",
             status: event.status,
             sequence: event.sequence,
             created: event.created ? newDate(event.created) : undefined,

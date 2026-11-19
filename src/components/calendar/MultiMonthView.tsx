@@ -65,7 +65,9 @@ export function MultiMonthView({
   const [quickViewItem, setQuickViewItem] = useState<CalendarEvent | Task>();
   const [isTask, setIsTask] = useState(false);
   const eventModalStore = useEventModalStore();
-  const [clickedElement, setClickedElement] = useState<HTMLElement | null>(null);
+  const [clickedElement, setClickedElement] = useState<HTMLElement | null>(
+    null
+  );
 
   // Update events when the calendar view changes
   const handleDatesSet = useCallback(
@@ -94,6 +96,7 @@ export function MultiMonthView({
           allDay: item.allDay,
           classNames: [
             item.extendedProps?.isTask ? "calendar-task" : "calendar-event",
+            ...(item.isFree ? ["calendar-event-free"] : []),
           ],
           extendedProps: {
             ...item,

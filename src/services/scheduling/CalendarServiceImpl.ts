@@ -188,6 +188,8 @@ export class CalendarServiceImpl implements CalendarService {
         feedId: {
           in: selectedCalendarIds,
         },
+        // Events marked "free" don't block scheduling
+        isFree: false,
         AND: [
           {
             start: {

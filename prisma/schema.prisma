@@ -148,6 +148,7 @@ model CalendarEvent {
   isRecurring     Boolean      @default(false)
   recurrenceRule  String?
   allDay          Boolean      @default(false)
+  isFree          Boolean      @default(false) // Busy/free: free events don't block auto-scheduling
   status          String?
   sequence        Int?
   created         DateTime?

@@ -166,6 +166,19 @@
   filter: brightness(0.97);
 }
 
+/* Events marked "free" (busy/free): faded, hatched and dashed so it's
+   clear the time is still available to the scheduler */
+.fc .calendar-event-free.fc-timegrid-event,
+.fc .calendar-event-free.fc-daygrid-event {
+  opacity: 0.6;
+  border-style: dashed !important;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgb(255 255 255 / 0.28) 0 6px,
+    transparent 6px 12px
+  );
+}
+
 /* Short time-grid events (FullCalendar adds this class below eventShortHeight):
    drop the vertical padding so a 15-minute task still has room for its title */
 .fc .fc-timegrid-event-short .fc-event-main {

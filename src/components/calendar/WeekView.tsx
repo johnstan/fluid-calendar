@@ -66,7 +66,9 @@ export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
   const [quickViewItem, setQuickViewItem] = useState<CalendarEvent | Task>();
   const [isTask, setIsTask] = useState(false);
   const eventModalStore = useEventModalStore();
-  const [clickedElement, setClickedElement] = useState<HTMLElement | null>(null);
+  const [clickedElement, setClickedElement] = useState<HTMLElement | null>(
+    null
+  );
   const { handleEventDrop, handleEventResize } = useCalendarDragHandlers();
 
   // Update events when the calendar view changes
@@ -97,6 +99,7 @@ export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
           allDay: item.allDay,
           classNames: [
             item.extendedProps?.isTask ? "calendar-task" : "calendar-event",
+            ...(item.isFree ? ["calendar-event-free"] : []),
           ],
           ...getEventEditability(item, feeds),
           // Store the original event data
