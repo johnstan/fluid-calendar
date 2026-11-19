@@ -8,6 +8,35 @@ import { repushDirtyBlocks } from "@/lib/task-block-push";
 
 const LOG_SOURCE = "task-schedule-route";
 
+// One Auto Schedule run per user at a time. A request that arrives while a
+// run is in progress waits for it and gets its result, instead of starting a
+// second run that would race it (duplicate calendar blocks, wasted work).
+const runsInProgress = new Map<string, Promise<unknown>>();
+
+async function runOnce(userId: string) {
+  const running = runsInProgress.get(userId);
+  if (running) {
+    logger.info(
+      "Auto Schedule already running for user; joining it",
+      { userId },
+      LOG_SOURCE
+    );
+    return running;
+  }
+  const run = (async () => {
+    const tasksWithRelations = await scheduleAllTasksForUser(userId);
+    // Repush dirty blocks and newly scheduled tasks to calendar
+    await repushDirtyBlocks(userId);
+    return tasksWithRelations;
+  })();
+  runsInProgress.set(userId, run);
+  try {
+    return await run;
+  } finally {
+    runsInProgress.delete(userId);
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await authenticateRequest(request, LOG_SOURCE);
@@ -17,12 +46,7 @@ export async function POST(request: NextRequest) {
 
     const userId = auth.userId;
 
-    // Use the common function to schedule all tasks
-    // If settings are provided, use them, otherwise use the overloaded function
-    const tasksWithRelations = await scheduleAllTasksForUser(userId);
-
-    // Repush dirty blocks and newly scheduled tasks to calendar
-    await repushDirtyBlocks(userId);
+    const tasksWithRelations = await runOnce(userId);
 
     return NextResponse.json(tasksWithRelations);
   } catch (error) {

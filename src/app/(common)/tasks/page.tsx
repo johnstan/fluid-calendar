@@ -15,6 +15,8 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 import { cn } from "@/lib/utils";
 
+import { useAutoSchedule } from "@/hooks/use-auto-schedule";
+
 import { useProjectStore } from "@/store/project";
 import { useTaskStore } from "@/store/task";
 import { useTaskModalStore } from "@/store/taskModal";
@@ -34,8 +36,8 @@ export default function TasksPage() {
     updateTask,
     deleteTask,
     createTag,
-    scheduleAllTasks,
   } = useTaskStore();
+  const { runAutoSchedule, isScheduling } = useAutoSchedule();
   const { fetchProjects, activeProject } = useProjectStore();
   const { viewMode, setViewMode } = useTaskPageSettings();
   const { isOpen, setOpen } = useTaskModalStore();
@@ -148,11 +150,14 @@ export default function TasksPage() {
             <div className="flex items-center gap-2">
               <Button
                 variant="secondary"
-                onClick={() => {
-                  scheduleAllTasks();
-                }}
+                onClick={runAutoSchedule}
+                disabled={isScheduling}
+                aria-busy={isScheduling}
               >
-                Auto Schedule
+                {isScheduling && (
+                  <span className="mr-2 h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                )}
+                {isScheduling ? "Scheduling…" : "Auto Schedule"}
               </Button>
               <Button
                 data-create-task-button

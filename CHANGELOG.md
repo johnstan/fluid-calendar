@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Auto Schedule shows progress ("Scheduling…" with a spinner, button disabled) and a toast when it finishes or fails. Concurrent runs are coalesced in the browser and on the server, so a double click or an automatic trigger can no longer start a second run alongside the first
 - Task list filter for recurring vs one-off tasks ("One-off only" / "Recurring only"); the filter bar now wraps on narrow screens
 - Named schedules, like Motion: create weekly time windows (e.g. "Work hours", "Evenings & Weekends") under Settings > Schedules, pick one per task in the task editor, and mark one as the default. Auto-scheduling only places a task inside its schedule's hours (in the user's timezone); tasks without a schedule use the default schedule, or the Auto-Schedule working hours when there is none
 - Calendar events and tasks are drawn as separate cards with a thin outline and a 1px gap, so back-to-back and overlapping items are easy to tell apart

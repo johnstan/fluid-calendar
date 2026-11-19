@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 import dynamic from "next/dynamic";
+
 import { HiMenu } from "react-icons/hi";
 import { IoChevronBack, IoChevronForward } from "react-icons/io5";
 
@@ -11,11 +12,13 @@ import { FeedManager } from "@/components/calendar/FeedManager";
 import { MonthView } from "@/components/calendar/MonthView";
 import { MultiMonthView } from "@/components/calendar/MultiMonthView";
 import { WeekView } from "@/components/calendar/WeekView";
-// import { SponsorshipBanner } from "@/components/ui/sponsorship-banner";
 
-import { addDays, formatDate, newDate, subDays } from "@/lib/date-utils";
 import { isSaasEnabled } from "@/lib/config";
+// import { SponsorshipBanner } from "@/components/ui/sponsorship-banner";
+import { addDays, formatDate, newDate, subDays } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
+
+import { useAutoSchedule } from "@/hooks/use-auto-schedule";
 
 import {
   useCalendarStore,
@@ -28,9 +31,10 @@ import { CalendarEvent, CalendarFeed } from "@/types/calendar";
 
 // Dynamically import the appropriate version of the LifetimeAccessBanner
 const LifetimeAccessBanner = dynamic(
-  () => import(`./LifetimeAccessBanner.${isSaasEnabled ? "saas" : "open"}`).then(
-    (mod) => mod.LifetimeAccessBanner
-  ),
+  () =>
+    import(`./LifetimeAccessBanner.${isSaasEnabled ? "saas" : "open"}`).then(
+      (mod) => mod.LifetimeAccessBanner
+    ),
   { ssr: false } // Disable SSR for this component to prevent import errors
 );
 
@@ -45,7 +49,6 @@ export function Calendar({
 }: CalendarProps) {
   const { date: currentDate, setDate, view, setView } = useViewStore();
   const { isSidebarOpen, setSidebarOpen, isHydrated } = useCalendarUIStore();
-  const { scheduleAllTasks } = useTaskStore();
   const { setFeeds, setEvents } = useCalendarStore();
 
   // Use initial data from server for hydration
@@ -89,9 +92,7 @@ export function Calendar({
     }
   };
 
-  const handleAutoSchedule = async () => {
-    await scheduleAllTasks();
-  };
+  const { runAutoSchedule, isScheduling } = useAutoSchedule();
 
   return (
     <div className="flex h-full w-full">
@@ -140,10 +141,15 @@ export function Calendar({
             </button>
 
             <button
-              onClick={handleAutoSchedule}
-              className="rounded-lg px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10"
+              onClick={runAutoSchedule}
+              disabled={isScheduling}
+              aria-busy={isScheduling}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 disabled:cursor-wait disabled:opacity-70"
             >
-              Auto Schedule
+              {isScheduling && (
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              )}
+              {isScheduling ? "Scheduling…" : "Auto Schedule"}
             </button>
 
             <div className="flex items-center gap-2">

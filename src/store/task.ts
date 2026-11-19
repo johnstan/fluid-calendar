@@ -41,8 +41,13 @@ interface TaskState {
 
   // Auto-scheduling actions
   scheduleAllTasks: () => Promise<void>;
+  // True while an Auto Schedule run is in progress (drives button state)
+  isScheduling: boolean;
   triggerScheduleAllTasks: () => Promise<void>;
 }
+
+// The Auto Schedule request currently running, shared by concurrent callers
+let inFlightSchedule: Promise<void> | null = null;
 
 export const useTaskStore = create<TaskState>()(
   persist(
@@ -365,35 +370,48 @@ export const useTaskStore = create<TaskState>()(
       },
 
       // Auto-scheduling actions
+      isScheduling: false,
       scheduleAllTasks: async () => {
-        set({ loading: true, error: null });
+        // A run is already in progress (double click, or an automatic trigger
+        // after a task change): join it instead of starting a second one
+        if (inFlightSchedule) return inFlightSchedule;
+        inFlightSchedule = (async () => {
+          set({ loading: true, isScheduling: true, error: null });
+          try {
+            const response = await fetch("/api/tasks/schedule-all", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+            });
+            if (!response.ok) throw new Error("Failed to schedule tasks");
+            const updatedTasks = await response.json();
+
+            // Get current tasks from store
+            const currentTasks = get().tasks;
+
+            // Create a map of updated tasks by ID for efficient lookup
+            const updatedTasksMap = new Map(
+              updatedTasks.map((task: Task) => [task.id, task])
+            );
+
+            // Merge updated tasks with existing tasks
+            const mergedTasks = currentTasks.map((task) =>
+              updatedTasksMap.has(task.id)
+                ? updatedTasksMap.get(task.id)!
+                : task
+            ) as Task[];
+
+            set({ tasks: mergedTasks });
+          } catch (error) {
+            set({ error: error as Error });
+            throw error;
+          } finally {
+            set({ loading: false, isScheduling: false });
+          }
+        })();
         try {
-          const response = await fetch("/api/tasks/schedule-all", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-          });
-          if (!response.ok) throw new Error("Failed to schedule tasks");
-          const updatedTasks = await response.json();
-
-          // Get current tasks from store
-          const currentTasks = get().tasks;
-
-          // Create a map of updated tasks by ID for efficient lookup
-          const updatedTasksMap = new Map(
-            updatedTasks.map((task: Task) => [task.id, task])
-          );
-
-          // Merge updated tasks with existing tasks
-          const mergedTasks = currentTasks.map((task) =>
-            updatedTasksMap.has(task.id) ? updatedTasksMap.get(task.id)! : task
-          ) as Task[];
-
-          set({ tasks: mergedTasks });
-        } catch (error) {
-          set({ error: error as Error });
-          throw error;
+          await inFlightSchedule;
         } finally {
-          set({ loading: false });
+          inFlightSchedule = null;
         }
       },
     }),
