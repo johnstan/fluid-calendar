@@ -109,6 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Editing a task that belongs to a project (e.g. changing its priority) failed silently since the schedule picker was added: the update mixed a project relation with a plain `scheduleId`, which Prisma rejects. The project is now set as a plain field, and the task editor shows an error if a save fails instead of just staying open
 - Creating, editing or completing a task (and changing calendar events) no longer waits for a full Auto Schedule run: the change saves immediately and tasks are rescheduled in the background (debounced, with a follow-up run if you change something mid-run; the Auto Schedule button shows progress)
 - Focus Mode completion celebration now hides after 1.5 s instead of staying up until the task list reloaded
 - Task blocks pushed to Google Calendar now follow rescheduling: when Auto Schedule moves or unschedules a task that already has a calendar block, the block is updated or removed instead of staying at the old time; after each run, any block whose event no longer matches its task (or whose task lost its slot) is corrected too. Overlapping pushes no longer create duplicate blocks, and orphaned FluidCalendar blocks (no task points at them) are removed after each Auto Schedule run; events without the FluidCalendar marker are never touched

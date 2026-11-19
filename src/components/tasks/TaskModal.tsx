@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { RRule } from "rrule";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -230,7 +231,10 @@ export function TaskModal({
       });
       onClose();
     } catch (error) {
-      console.error("Error saving task:", error);
+      // Keep the modal open with the user's edits and say why
+      toast.error("Couldn't save the task", {
+        description: error instanceof Error ? error.message : undefined,
+      });
     } finally {
       setIsSubmitting(false);
     }

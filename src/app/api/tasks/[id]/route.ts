@@ -245,12 +245,10 @@ export async function PUT(
             connect: tagIds.map((id: string) => ({ id })), // Then connect new ones
           },
         }),
-        project:
-          projectId === null
-            ? { disconnect: true }
-            : projectId
-              ? { connect: { id: projectId } }
-              : undefined,
+        // Set the project as a plain foreign key: Prisma rejects an update
+        // that mixes relation inputs (project: { connect }) with scalar
+        // foreign keys such as scheduleId, which the task editor sends
+        ...(projectId !== undefined && { projectId: projectId || null }),
       },
       include: {
         tags: true,
