@@ -147,7 +147,7 @@ export class TimeSlotManagerImpl implements TimeSlotManager {
     const availableSlots = await this.removeConflicts(workHourSlots, task);
 
     // 4. Apply buffer times
-    const slotsWithBuffer = this.applyBufferTimes(availableSlots);
+    const slotsWithBuffer = await this.applyBufferTimes(availableSlots, task);
 
     // 5. Score slots
     const scoredSlots = this.scoreSlots(slotsWithBuffer, task);
@@ -503,14 +503,41 @@ export class TimeSlotManagerImpl implements TimeSlotManager {
   // 2. Should check for conflicts during buffer periods
   // 3. Consider adjusting slot times to include the buffers
   // 4. Could factor buffer availability into slot scoring
-  private applyBufferTimes(slots: TimeSlot[]): TimeSlot[] {
-    return slots.map((slot) => {
+  /**
+   * A slot "has buffer time" when the buffer before and after it is free:
+   * no calendar event and no other scheduled task. (Previously this only
+   * checked that the buffers fell inside the global working hours, which
+   * penalised the first slot of every day and ignored actual neighbours.)
+   */
+  private async applyBufferTimes(
+    slots: TimeSlot[],
+    task: Task
+  ): Promise<TimeSlot[]> {
+    if (!this.settings.bufferMinutes || slots.length === 0) {
+      for (const slot of slots) slot.hasBufferTime = true;
+      return slots;
+    }
+
+    const buffers = slots.flatMap((slot) => {
       const { beforeBuffer, afterBuffer } = this.calculateBufferTimes(slot);
-      // Only mark as having buffer time if both buffers are within work hours
-      slot.hasBufferTime =
-        beforeBuffer.isWithinWorkHours && afterBuffer.isWithinWorkHours;
-      return slot;
+      return [beforeBuffer, afterBuffer];
     });
+    const results = await this.calendarService.findBatchConflicts(
+      buffers.map((slot) => ({ slot, taskId: task.id })),
+      parseSelectedCalendars(this.settings.selectedCalendars),
+      task.userId || "",
+      task.id
+    );
+    const isFree = (i: number) => {
+      const r = results[i];
+      return (
+        !!r && r.conflicts.length === 0 && !this.hasInMemoryConflict(buffers[i])
+      );
+    };
+    slots.forEach((slot, i) => {
+      slot.hasBufferTime = isFree(2 * i) && isFree(2 * i + 1);
+    });
+    return slots;
   }
 
   private scoreSlot(slot: TimeSlot): number {

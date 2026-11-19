@@ -2,6 +2,7 @@ import { CalendarService } from "@/services/scheduling/CalendarService";
 import { TimeSlotManagerImpl } from "@/services/scheduling/TimeSlotManager";
 import { AutoScheduleSettings, Task } from "@prisma/client";
 
+import { areIntervalsOverlapping } from "@/lib/date-utils";
 import {
   ScheduleBlocks,
   parseScheduleBlocks,
@@ -171,5 +172,72 @@ describe("parseScheduleBlocks", () => {
     });
     expect(parsed).toEqual({ "1": [{ start: "09:00", end: "18:00" }] });
     expect(weeklyMinutes(parsed)).toBe(9 * 60);
+  });
+});
+
+describe("buffer adequacy", () => {
+  beforeAll(() => jest.useFakeTimers().setSystemTime(NOW));
+  afterAll(() => jest.useRealTimers());
+
+  // One calendar event on Friday 08:00-09:00 local (07:00-08:00 UTC)
+  const event = {
+    start: new Date("2026-11-20T07:00:00Z"),
+    end: new Date("2026-11-20T08:00:00Z"),
+  };
+  const fakeCalendar = {
+    findBatchConflicts: async (items: { slot: TimeSlot; taskId: string }[]) =>
+      items.map(({ slot }) => ({
+        slot,
+        conflicts: areIntervalsOverlapping(
+          { start: slot.start, end: slot.end },
+          event
+        )
+          ? [{ type: "calendar_event", start: event.start, end: event.end }]
+          : [],
+      })),
+  } as unknown as CalendarService;
+
+  const manager = new TimeSlotManagerImpl(
+    { ...settings, bufferMinutes: 10 } as AutoScheduleSettings,
+    fakeCalendar,
+    TZ,
+    []
+  ) as unknown as {
+    applyBufferTimes: (s: TimeSlot[], t: Partial<Task>) => Promise<TimeSlot[]>;
+  };
+
+  const slotAt = (iso: string, minutes = 5) =>
+    ({
+      start: new Date(iso),
+      end: new Date(new Date(iso).getTime() + minutes * 60000),
+      score: 0,
+      conflicts: [],
+      energyLevel: null,
+      isWithinWorkHours: true,
+      hasBufferTime: false,
+    }) as TimeSlot;
+
+  it("gives the first slot of the day its buffer when nothing is around it", async () => {
+    // 07:00 local: the buffer before it (06:50) is outside working hours,
+    // which used to cost the slot its buffer score
+    const [slot] = await manager.applyBufferTimes(
+      [slotAt("2026-11-20T06:00:00Z")],
+      { id: "t", userId: "u" }
+    );
+    expect(slot.hasBufferTime).toBe(true);
+  });
+
+  it("removes the buffer bonus right before or after an event", async () => {
+    const [before, after, clear] = await manager.applyBufferTimes(
+      [
+        slotAt("2026-11-20T06:55:00Z"), // 07:55-08:00, buffer runs into 08:00
+        slotAt("2026-11-20T08:00:00Z"), // 09:00, buffer starts inside event
+        slotAt("2026-11-20T08:15:00Z"), // 09:15, 10+ minutes clear
+      ],
+      { id: "t", userId: "u" }
+    );
+    expect(before.hasBufferTime).toBe(false);
+    expect(after.hasBufferTime).toBe(false);
+    expect(clear.hasBufferTime).toBe(true);
   });
 });
