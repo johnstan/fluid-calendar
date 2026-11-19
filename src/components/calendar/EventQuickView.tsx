@@ -28,6 +28,8 @@ import { useTaskStore } from "@/store/task";
 import { AttendeeStatus, CalendarEvent } from "@/types/calendar";
 import { Priority, Task, TaskStatus } from "@/types/task";
 
+import { EventTravelEditor } from "./EventTravelEditor";
+
 interface Attendee {
   name?: string;
   email: string;
@@ -224,6 +226,9 @@ export function EventQuickView({
                     {eventItem.location}
                   </span>
                 </div>
+              )}
+              {!eventItem.allDay && (
+                <EventTravelEditor eventId={eventItem.id} />
               )}
               {eventItem.attendees && eventItem.attendees.length > 0 && (
                 <div className="flex items-start gap-2">

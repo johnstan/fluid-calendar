@@ -95,6 +95,7 @@ model User {
   JobRecord            JobRecord[]
   taskProviders        TaskProvider[]
   schedules            Schedule[]
+  eventTravelTimes     EventTravelTime[]
   TaskChange           TaskChange[]
   PasswordReset        PasswordReset[]
 }
@@ -685,4 +686,21 @@ model Subscription {
 
   @@index([stripeCustomerId])
   @@index([stripePaymentIntentId])
+}
+
+/// Travel time around a calendar event, honoured by the auto-scheduler.
+/// Kept apart from CalendarEvent because synced events are deleted and
+/// re-created on each sync; eventKey is the provider's event id, the
+/// provider's recurring-series id (all occurrences), or the local id.
+model EventTravelTime {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventKey      String
+  beforeMinutes Int      @default(0)
+  afterMinutes  Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, eventKey])
 }

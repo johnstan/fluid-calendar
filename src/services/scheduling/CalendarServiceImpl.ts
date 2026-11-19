@@ -1,6 +1,7 @@
 import { CalendarEvent } from "@prisma/client";
 
 import { areIntervalsOverlapping } from "@/lib/date-utils";
+import { applyTravelTimes, travelLookupKeys } from "@/lib/event-travel";
 import { prisma } from "@/lib/prisma";
 
 import { Conflict, TimeSlot } from "@/types/scheduling";
@@ -137,6 +138,29 @@ export class CalendarServiceImpl implements CalendarService {
     return conflicts;
   }
 
+  private async withTravelTimes(
+    events: CalendarEvent[],
+    feedIds: string[]
+  ): Promise<CalendarEvent[]> {
+    if (events.length === 0) return events;
+    const feeds = await prisma.calendarFeed.findMany({
+      where: { id: { in: feedIds } },
+      select: { userId: true },
+    });
+    const userIds = [
+      ...new Set(feeds.map((f) => f.userId).filter((id): id is string => !!id)),
+    ];
+    if (userIds.length === 0) return events;
+    const rows = await prisma.eventTravelTime.findMany({
+      where: {
+        userId: { in: userIds },
+        eventKey: { in: travelLookupKeys(events) },
+      },
+      select: { eventKey: true, beforeMinutes: true, afterMinutes: true },
+    });
+    return applyTravelTimes(events, rows);
+  }
+
   async getEvents(
     start: Date,
     end: Date,
@@ -159,7 +183,7 @@ export class CalendarServiceImpl implements CalendarService {
     const endDay = new Date(this.getWeekTimestamp(end, false));
     endDay.setDate(endDay.getDate() + 1); // Add one more day just to be safe
 
-    const events = await prisma.calendarEvent.findMany({
+    const rawEvents = await prisma.calendarEvent.findMany({
       where: {
         feedId: {
           in: selectedCalendarIds,
@@ -178,6 +202,9 @@ export class CalendarServiceImpl implements CalendarService {
         ],
       },
     });
+
+    // Widen events by their travel time so the scheduler keeps it free
+    const events = await this.withTravelTimes(rawEvents, selectedCalendarIds);
 
     // Update cache with new timestamp
     this.cache = {
@@ -262,7 +289,10 @@ export class CalendarServiceImpl implements CalendarService {
           continue;
         }
         // Skip echoes of our own pushed task blocks
-        if (event.externalEventId && pushedBlockIds.has(event.externalEventId)) {
+        if (
+          event.externalEventId &&
+          pushedBlockIds.has(event.externalEventId)
+        ) {
           continue;
         }
         if (
