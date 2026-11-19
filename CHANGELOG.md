@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Phone layout: top navigation collapses to icons, calendar header wraps (short date, view switcher on its own row), calendar sidebar overlays instead of squeezing the grid, task page header/filters wrap and the project sidebar is hidden below tablet width, so pages no longer scroll sideways
 - Formatted task descriptions: checklists (`- [ ]`), bullet and numbered lists, **bold**, *italic*, ~~strikethrough~~, `code` and links. The task editor has a toolbar and Write/Preview tabs (lists continue on Enter), and checklist items can be ticked from Preview or from the calendar quick view. Stored as plain Markdown so descriptions stay readable in Google Tasks / Outlook; rendered without raw HTML
 - Auto Schedule shows progress ("Scheduling…" with a spinner, button disabled) and a toast when it finishes or fails. Concurrent runs are coalesced in the browser and on the server, so a double click or an automatic trigger can no longer start a second run alongside the first
 - Task list filter for recurring vs one-off tasks ("One-off only" / "Recurring only"); the filter bar now wraps on narrow screens

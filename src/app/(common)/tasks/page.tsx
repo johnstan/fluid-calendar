@@ -116,10 +116,12 @@ export default function TasksPage() {
     <div className="flex h-full">
       <ProjectSidebar />
       <div className="flex min-w-0 flex-1 flex-col" data-task-page>
-        <div className="border-b border-border px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h1 className="text-2xl font-bold text-foreground">Tasks</h1>
+        <div className="border-b border-border px-3 py-3 sm:px-6 sm:py-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <h1 className="text-xl font-bold text-foreground sm:text-2xl">
+                Tasks
+              </h1>
               <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
                 <button
                   onClick={() => setViewMode("list")}
@@ -188,7 +190,7 @@ export default function TasksPage() {
           )}
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-6">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-6">
           {viewMode === "list" ? (
             <TaskList
               tasks={tasks}

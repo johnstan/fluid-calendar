@@ -290,7 +290,7 @@ export function TaskList({
         </div>
       </div>
 
-      <div className="flex-1 rounded-lg border bg-background">
+      <div className="min-w-0 flex-1 rounded-lg border bg-background">
         <div
           className="overflow-auto"
           style={{ maxHeight: "calc(100vh - 250px)" }}

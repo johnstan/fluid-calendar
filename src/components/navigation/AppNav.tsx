@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { BsListTask, BsCalendar } from "react-icons/bs";
+import { BsCalendar, BsListTask } from "react-icons/bs";
 import { HiOutlineLightBulb, HiOutlineSearch } from "react-icons/hi";
 import { RiKeyboardLine } from "react-icons/ri";
 
@@ -47,14 +47,16 @@ export function AppNav({ className }: AppNavProps) {
         className
       )}
     >
-      <div className="h-full px-4">
+      <div className="h-full px-2 sm:px-4">
         <div className="flex h-full items-center justify-between">
-          <div className="flex items-center gap-8">
+          <div className="flex min-w-0 items-center gap-1 sm:gap-8">
             <Link
               href="/calendar"
               className={cn(
-                "flex items-center mr-8",
-                pathname === "/calendar" ? "text-primary" : "text-foreground hover:text-primary"
+                "mr-1 flex shrink-0 items-center sm:mr-8",
+                pathname === "/calendar"
+                  ? "text-primary"
+                  : "text-foreground hover:text-primary"
               )}
             >
               <Image
@@ -73,20 +75,22 @@ export function AppNav({ className }: AppNavProps) {
                 <Link
                   key={link.href}
                   href={link.href}
+                  title={link.label}
+                  aria-label={link.label}
                   className={cn(
-                    "inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium",
+                    "inline-flex items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium sm:px-4",
                     isActive
                       ? "bg-primary/10 text-primary"
                       : "text-foreground hover:bg-muted"
                   )}
                 >
                   <Icon className="h-4 w-4" />
-                  {link.label}
+                  <span className="hidden sm:inline">{link.label}</span>
                 </Link>
               );
             })}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <button
               onClick={openCommandPalette}
               className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -101,7 +105,7 @@ export function AppNav({ className }: AppNavProps) {
             <ThemeToggle />
             <button
               onClick={() => setShortcutsOpen(true)}
-              className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="hidden items-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground sm:flex"
               title="View Keyboard Shortcuts (Press ?)"
             >
               <RiKeyboardLine className="h-4 w-4" />
