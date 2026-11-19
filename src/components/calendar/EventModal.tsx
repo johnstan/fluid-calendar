@@ -32,6 +32,9 @@ import { useSettingsStore } from "@/store/settings";
 
 import { CalendarEvent } from "@/types/calendar";
 
+import { EventAvailabilityToggle } from "./EventAvailabilityToggle";
+import { EventTravelEditor } from "./EventTravelEditor";
+
 interface EventModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -484,6 +487,20 @@ export function EventModal({
                 className="event-location"
               />
             </div>
+
+            {/* Saved straight away (not with the form): travel time is
+                Fluid-only, busy/free is written to the calendar */}
+            {event?.id && !event.allDay && (
+              <div className="space-y-2 rounded-md border border-border p-3 text-muted-foreground">
+                <EventAvailabilityToggle
+                  eventId={event.id}
+                  feedId={event.feedId ?? ""}
+                  isFree={!!event.isFree}
+                  isRecurring={!!event.isRecurring}
+                />
+                <EventTravelEditor eventId={event.id} />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>

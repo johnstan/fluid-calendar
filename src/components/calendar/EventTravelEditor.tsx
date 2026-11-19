@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { IoCarOutline } from "react-icons/io5";
+import { IoCarOutline, IoChevronDown } from "react-icons/io5";
 import { toast } from "sonner";
 
 const OPTIONS = [0, 5, 10, 15, 20, 30, 45, 60, 75, 90, 120];
@@ -82,19 +82,22 @@ export function EventTravelEditor({ eventId }: { eventId: string }) {
   };
 
   const select = (field: "beforeMinutes" | "afterMinutes", aria: string) => (
-    <select
-      aria-label={aria}
-      value={state[field]}
-      disabled={saving}
-      onChange={(e) => save({ ...state, [field]: Number(e.target.value) })}
-      className="h-7 rounded-md border border-input bg-background px-1 text-xs text-foreground"
-    >
-      {withCurrent(state[field]).map((m) => (
-        <option key={m} value={m}>
-          {label(m)}
-        </option>
-      ))}
-    </select>
+    <span className="relative inline-flex">
+      <select
+        aria-label={aria}
+        value={state[field]}
+        disabled={saving}
+        onChange={(e) => save({ ...state, [field]: Number(e.target.value) })}
+        className="h-7 appearance-none rounded-md border border-input bg-background py-0 pl-2 pr-6 text-xs text-foreground"
+      >
+        {withCurrent(state[field]).map((m) => (
+          <option key={m} value={m}>
+            {label(m)}
+          </option>
+        ))}
+      </select>
+      <IoChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+    </span>
   );
 
   return (
