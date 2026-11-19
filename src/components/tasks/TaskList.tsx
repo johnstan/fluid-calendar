@@ -52,6 +52,7 @@ export function TaskList({
     tagIds,
     search,
     hideUpcomingTasks,
+    recurrence,
     setSortBy,
     setSortDirection,
     setFilters,
@@ -86,6 +87,7 @@ export function TaskList({
         tagIds,
         search,
         hideUpcomingTasks,
+        recurrence,
       })
     );
   }, [
@@ -96,6 +98,7 @@ export function TaskList({
     tagIds,
     search,
     hideUpcomingTasks,
+    recurrence,
   ]);
 
   // Apply sorting
@@ -174,11 +177,12 @@ export function TaskList({
     energyLevel?.length ||
     timePreference?.length ||
     tagIds?.length ||
+    recurrence ||
     search;
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-4 flex items-center gap-4">
+      <div className="mb-4 flex flex-wrap items-center gap-2 sm:gap-4">
         <StatusFilter
           value={status || []}
           onChange={(value) => setFilters({ status: value })}
@@ -228,7 +232,26 @@ export function TaskList({
           </SelectContent>
         </Select>
 
-        <div className="flex flex-1 gap-2">
+        <Select
+          value={recurrence || "all"}
+          onValueChange={(value) =>
+            setFilters({
+              recurrence:
+                value === "all" ? undefined : (value as "recurring" | "oneOff"),
+            })
+          }
+        >
+          <SelectTrigger className="h-9 w-[150px]">
+            <SelectValue placeholder="All Tasks" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Recurring &amp; One-off</SelectItem>
+            <SelectItem value="oneOff">One-off only</SelectItem>
+            <SelectItem value="recurring">Recurring only</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <div className="flex min-w-[200px] flex-1 gap-2">
           <Input
             value={search || ""}
             onChange={(e) =>

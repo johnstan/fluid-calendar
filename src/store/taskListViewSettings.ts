@@ -25,6 +25,8 @@ interface TaskListViewSettings {
   tagIds?: string[];
   search?: string;
   hideUpcomingTasks?: boolean;
+  // Only recurring tasks, only one-off tasks, or both (undefined)
+  recurrence?: "recurring" | "oneOff";
 
   // Actions
   setSortBy: (sortBy: TaskListViewSettings["sortBy"]) => void;
@@ -56,6 +58,7 @@ export const useTaskListViewSettings = create<TaskListViewSettings>()(
       tagIds: undefined,
       search: undefined,
       hideUpcomingTasks: false,
+      recurrence: undefined,
 
       // Actions
       setSortBy: (sortBy) => set({ sortBy }),
@@ -69,6 +72,7 @@ export const useTaskListViewSettings = create<TaskListViewSettings>()(
           tagIds: undefined,
           search: undefined,
           hideUpcomingTasks: false,
+          recurrence: undefined,
         }),
     }),
     {

@@ -1,9 +1,9 @@
-import { addDays, newDate, startOfDay } from "@/lib/date-utils";
-
 import {
   isUpcomingTask,
   taskMatchesListFilters,
 } from "@/components/tasks/utils/task-list-utils";
+
+import { addDays, newDate, startOfDay } from "@/lib/date-utils";
 
 import { Task, TaskStatus } from "@/types/task";
 
@@ -99,9 +99,9 @@ describe("taskMatchesListFilters - hide upcoming tasks", () => {
 describe("taskMatchesListFilters - other predicates are preserved", () => {
   it("filters by status", () => {
     const task = makeTask({ status: TaskStatus.COMPLETED });
-    expect(
-      taskMatchesListFilters(task, { status: [TaskStatus.TODO] })
-    ).toBe(false);
+    expect(taskMatchesListFilters(task, { status: [TaskStatus.TODO] })).toBe(
+      false
+    );
     expect(
       taskMatchesListFilters(task, { status: [TaskStatus.COMPLETED] })
     ).toBe(true);
@@ -115,5 +115,31 @@ describe("taskMatchesListFilters - other predicates are preserved", () => {
 
   it("matches everything when no filters are provided", () => {
     expect(taskMatchesListFilters(makeTask(), {})).toBe(true);
+  });
+});
+
+describe("taskMatchesListFilters - recurring vs one-off", () => {
+  const recurring = makeTask({ id: "r", isRecurring: true });
+  const oneOff = makeTask({ id: "o", isRecurring: false });
+
+  it("shows both when no recurrence filter is set", () => {
+    expect(taskMatchesListFilters(recurring, {})).toBe(true);
+    expect(taskMatchesListFilters(oneOff, {})).toBe(true);
+  });
+
+  it("shows only one-off tasks with the one-off filter", () => {
+    expect(taskMatchesListFilters(oneOff, { recurrence: "oneOff" })).toBe(true);
+    expect(taskMatchesListFilters(recurring, { recurrence: "oneOff" })).toBe(
+      false
+    );
+  });
+
+  it("shows only recurring tasks with the recurring filter", () => {
+    expect(taskMatchesListFilters(recurring, { recurrence: "recurring" })).toBe(
+      true
+    );
+    expect(taskMatchesListFilters(oneOff, { recurrence: "recurring" })).toBe(
+      false
+    );
   });
 });

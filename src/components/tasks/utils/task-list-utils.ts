@@ -37,6 +37,7 @@ export interface TaskListFilterSettings {
   tagIds?: string[];
   search?: string;
   hideUpcomingTasks?: boolean;
+  recurrence?: "recurring" | "oneOff";
 }
 
 /**
@@ -51,6 +52,14 @@ export const taskMatchesListFilters = (
 
   // Status filter
   if (status?.length && !status.includes(task.status)) {
+    return false;
+  }
+
+  // Recurring vs one-off
+  if (filters.recurrence === "recurring" && !task.isRecurring) {
+    return false;
+  }
+  if (filters.recurrence === "oneOff" && task.isRecurring) {
     return false;
   }
 
