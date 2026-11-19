@@ -5,6 +5,7 @@ import {
   differenceInHours,
   differenceInMinutes,
   newDate,
+  toZonedTime,
 } from "@/lib/date-utils";
 
 import { EnergyLevel, SlotScore, TimeSlot } from "@/types/scheduling";
@@ -18,8 +19,27 @@ interface ProjectTask {
 export class SlotScorer {
   constructor(
     private settings: AutoScheduleSettings,
-    private scheduledTasks: Map<string, ProjectTask[]> = new Map()
+    private scheduledTasks: Map<string, ProjectTask[]> = new Map(),
+    // The user's timezone: hour-of-day checks (energy levels, preferred
+    // time) must use the user's wall clock, not the server's (often UTC)
+    private timeZone: string = "UTC"
   ) {}
+
+  private localHour(date: Date): number {
+    return toZonedTime(date, this.timeZone).getHours();
+  }
+
+  /**
+   * "As soon as possible": 1.0 now, halving every 24 hours. Used so that,
+   * other factors being equal, the earliest suitable slot wins.
+   */
+  private earliness(slot: TimeSlot): number {
+    const hoursToSlot = Math.max(
+      0,
+      differenceInMinutes(slot.start, newDate()) / 60
+    );
+    return Math.exp(-(Math.LN2 * hoursToSlot) / 24);
+  }
 
   // Add method to update scheduled tasks
   updateScheduledTasks(tasks: Task[]) {
@@ -84,7 +104,7 @@ export class SlotScorer {
     if (!task.energyLevel) return 0.5; // Neutral score if task has no energy level
 
     const slotEnergy = getEnergyLevelForTime(
-      slot.start.getHours(),
+      this.localHour(slot.start),
       this.settings
     );
     if (!slotEnergy) return 0.5; // Neutral score if time has no energy level
@@ -106,9 +126,10 @@ export class SlotScorer {
   }
 
   private scoreTimePreference(slot: TimeSlot, task: Task): number {
-    // If task has a specific time preference, use that
+    // Inside the preferred window (in the user's timezone) earlier is better;
+    // outside it scores 0. Without a preference, earlier is simply better.
     if (task.preferredTime) {
-      const hour = slot.start.getHours();
+      const hour = this.localHour(slot.start);
       const preference = task.preferredTime.toLowerCase();
       const ranges = {
         morning: { start: 5, end: 12 },
@@ -116,14 +137,11 @@ export class SlotScorer {
         evening: { start: 17, end: 22 },
       };
       const range = ranges[preference as keyof typeof ranges];
-      return hour >= range.start && hour < range.end ? 1 : 0;
+      if (!range) return this.earliness(slot);
+      return hour >= range.start && hour < range.end ? this.earliness(slot) : 0;
     }
 
-    // For tasks without specific time preference, favor earlier slots
-    const minutesToSlot = differenceInMinutes(slot.start, newDate());
-    const daysToSlot = minutesToSlot / (24 * 60);
-    // Use ln(2)/7 as decay rate to get exactly 0.5 after 7 days
-    return Math.exp(-(Math.log(2) / 7) * daysToSlot); // Decay to 0.5 over a week
+    return this.earliness(slot);
   }
 
   private scoreDeadlineProximity(slot: TimeSlot, task: Task): number {
@@ -132,46 +150,34 @@ export class SlotScorer {
     }
 
     const now = newDate();
-    // First calculate how overdue the task is relative to now (fixed reference point)
-    const minutesOverdue = -differenceInMinutes(task.dueDate, now);
+    // Due dates are date-only (stored as 00:00 UTC), so the deadline is the
+    // END of the due day, not its start.
+    const effectiveDue = new Date(task.dueDate.getTime() + 24 * 60 * 60 * 1000);
 
+    // Overdue already: boost the task (1.0 to 2.0 by how overdue it is) so it
+    // is scheduled before others, and prefer earlier slots.
+    const minutesOverdue = differenceInMinutes(now, effectiveDue);
     if (minutesOverdue > 0) {
-      // For overdue tasks:
-      // 1. Calculate base score based on how overdue from NOW (1.0 to 2.0)
       const daysOverdue = minutesOverdue / (24 * 60);
-      const maxOverdueScore = 2.0;
-      const overdueScaleDays = 14; // Two weeks
-      const baseScore = Math.min(
-        maxOverdueScore,
-        1.0 + daysOverdue / overdueScaleDays
-      );
-
-      // 2. Apply time penalty for later slots
-      const minutesToSlot = differenceInMinutes(slot.start, now);
-      const daysToSlot = minutesToSlot / (24 * 60);
-      // Penalty increases with slot distance, max 50% reduction at 2 weeks
+      const baseScore = Math.min(2.0, 1.0 + daysOverdue / 14);
+      const daysToSlot = differenceInMinutes(slot.start, now) / (24 * 60);
       const timePenalty = Math.min(0.5, daysToSlot / 14);
-
-      // Apply penalty as a multiplier to preserve relative scoring
       return baseScore * (1 - timePenalty);
     }
 
-    // For future tasks. Due dates are date-only (stored as 00:00 UTC), so the
-    // deadline is the END of the due day, not its start.
-    const effectiveDue = new Date(task.dueDate.getTime() + 24 * 60 * 60 * 1000);
+    // Slot after the deadline: penalise lateness
     const minutesToDeadline = differenceInMinutes(effectiveDue, slot.start);
-
     if (minutesToDeadline < 0) {
-      // Slot is after the deadline: penalise lateness instead of rewarding it
-      // (previously this capped at 0.99, the same as a slot right before the deadline)
       const daysLate = -minutesToDeadline / (24 * 60);
       return Math.max(0, 0.3 - 0.3 * Math.min(1, daysLate / 7));
     }
 
-    const daysToDeadline = minutesToDeadline / (24 * 60);
-    const score = Math.min(0.99, Math.exp(-daysToDeadline / 3));
-
-    return score;
+    // Slot meets the deadline: score the task's urgency (how soon it is due
+    // from now), the same for every on-time slot. This keeps urgent tasks
+    // ahead of others without rewarding slots for being closer to the
+    // deadline, which used to push work as late as possible.
+    const daysLeft = differenceInMinutes(effectiveDue, now) / (24 * 60);
+    return Math.min(1, Math.exp(-daysLeft / 3));
   }
 
   private scoreProjectProximity(slot: TimeSlot, task: Task): number {
