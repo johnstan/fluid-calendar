@@ -28,6 +28,7 @@ import { RecurrenceConverterFactory } from "@/lib/task-sync/recurrence/recurrenc
 import { cn } from "@/lib/utils";
 
 import { useProjectStore } from "@/store/project";
+import { useScheduleStore } from "@/store/schedules";
 
 import {
   EnergyLevel,
@@ -104,6 +105,14 @@ export function TaskModal({
   const [projectId, setProjectId] = useState<string | null | undefined>(
     initialProjectId || task?.projectId
   );
+  const [scheduleId, setScheduleId] = useState<string | null>(
+    task?.scheduleId ?? null
+  );
+  const {
+    schedules,
+    loaded: schedulesLoaded,
+    fetchSchedules,
+  } = useScheduleStore();
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceRule, setRecurrenceRule] = useState<string | undefined>();
   const [isAutoScheduled, setIsAutoScheduled] = useState(
@@ -130,6 +139,7 @@ export function TaskModal({
     setNewTagName("");
     setNewTagColor("#E5E7EB");
     setProjectId(initialProjectId ?? null);
+    setScheduleId(null);
     setIsRecurring(false);
     setRecurrenceRule(undefined);
     setIsAutoScheduled(true);
@@ -168,6 +178,7 @@ export function TaskModal({
       setPreferredTime(task.preferredTime || "");
       setSelectedTagIds(task.tags.map((t) => t.id));
       setProjectId(task.projectId || null);
+      setScheduleId(task.scheduleId ?? null);
       setIsRecurring(task.isRecurring);
       setRecurrenceRule(task.recurrenceRule || undefined);
       setIsAutoScheduled(task.isAutoScheduled);
@@ -177,6 +188,13 @@ export function TaskModal({
       resetForm();
     }
   }, [task, isOpen, initialProjectId, resetForm]);
+
+  // Load schedules for the schedule picker
+  useEffect(() => {
+    if (isOpen && !schedulesLoaded) {
+      fetchSchedules().catch(() => undefined);
+    }
+  }, [isOpen, schedulesLoaded, fetchSchedules]);
 
   // Focus title input when modal opens
   useEffect(() => {
@@ -202,6 +220,7 @@ export function TaskModal({
         preferredTime: preferredTime || undefined,
         tagIds: selectedTagIds,
         projectId: projectId,
+        scheduleId,
         isRecurring,
         recurrenceRule: isRecurring ? recurrenceRule : undefined,
         isAutoScheduled,
@@ -379,6 +398,36 @@ export function TaskModal({
                   {Object.values(TimePreference).map((time) => (
                     <SelectItem key={time} value={time}>
                       {formatEnumValue(time)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="schedule">Schedule</Label>
+              <Select
+                value={scheduleId || "default"}
+                onValueChange={(value) =>
+                  setScheduleId(value === "default" ? null : value)
+                }
+              >
+                <SelectTrigger id="schedule">
+                  <SelectValue placeholder="Default">
+                    {schedules.find((s) => s.id === scheduleId)?.name ??
+                      "Default"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">
+                    Default
+                    {schedules.find((s) => s.isDefault)
+                      ? ` (${schedules.find((s) => s.isDefault)!.name})`
+                      : " (working hours)"}
+                  </SelectItem>
+                  {schedules.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

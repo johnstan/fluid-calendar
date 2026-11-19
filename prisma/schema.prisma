@@ -94,6 +94,7 @@ model User {
   tags                 Tag[]
   JobRecord            JobRecord[]
   taskProviders        TaskProvider[]
+  schedules            Schedule[]
   TaskChange           TaskChange[]
   PasswordReset        PasswordReset[]
 }
@@ -261,6 +262,12 @@ model Task {
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id])
 
+  // Named schedule (e.g. "Work hours", "Evenings & Weekends") that limits when
+  // auto-scheduling may place this task. Null = the user's default schedule,
+  // or the global working hours if there is none.
+  scheduleId String?
+  schedule   Schedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+
   @@index([status])
   @@index([dueDate])
   @@index([startDate])
@@ -278,6 +285,7 @@ model Task {
   @@index([externalListId])
   @@index([blockDirty, userId])
   @@index([blockFeedId])
+  @@index([scheduleId])
 }
 
 model Tag {
@@ -292,6 +300,28 @@ model Tag {
 
   @@unique([name, userId])
   @@index([name])
+  @@index([userId])
+}
+
+// Named weekly availability windows, like Motion's schedules. Auto-scheduling
+// only places a task inside the blocks of its schedule.
+model Schedule {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  color     String?
+  // Default schedule for tasks that don't pick one
+  isDefault Boolean  @default(false)
+  // Weekly time blocks in the user's timezone, keyed by weekday (0 = Sunday):
+  // { "1": [{ "start": "09:00", "end": "13:45" }, ...], ... }
+  blocks    Json     @default("{}")
+  sortOrder Int      @default(0)
+  tasks     Task[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
   @@index([userId])
 }
 
@@ -321,7 +351,7 @@ model AutoScheduleSettings {
   groupByProject Boolean @default(false)
 
   // Calendar block push settings
-  pushTasksToCalendar Boolean  @default(false) // Enable pushing task blocks to calendar
+  pushTasksToCalendar Boolean @default(false) // Enable pushing task blocks to calendar
   pushTasksFeedId     String? // ID of target CalendarFeed (must be GOOGLE type)
 
   // Metadata

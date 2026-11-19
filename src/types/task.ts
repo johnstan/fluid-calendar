@@ -47,6 +47,8 @@ export interface Task {
   tags: Tag[];
   projectId?: string | null;
   project?: Project | null;
+  // Named schedule limiting when auto-scheduling may place the task
+  scheduleId?: string | null;
   createdAt: Date;
   updatedAt: Date;
   recurrenceRule?: string | null;

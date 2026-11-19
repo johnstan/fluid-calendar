@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Named schedules, like Motion: create weekly time windows (e.g. "Work hours", "Evenings & Weekends") under Settings > Schedules, pick one per task in the task editor, and mark one as the default. Auto-scheduling only places a task inside its schedule's hours (in the user's timezone); tasks without a schedule use the default schedule, or the Auto-Schedule working hours when there is none
+- Calendar events and tasks are drawn as separate cards with a thin outline and a 1px gap, so back-to-back and overlapping items are easy to tell apart
 - Auto-scheduling places tasks as early as possible: slots that meet the deadline no longer score higher for being closer to it, earlier slots get a bonus (also inside a preferred time window), and morning/afternoon/evening and energy-level hours use the user's timezone instead of the server's
 - Import tasks from CalDAV servers (Baikal, Nextcloud, Fastmail, etc.): a connected CalDAV account's task collections (calendars that expose `VTODO`) can be mapped to a project and their tasks imported into FluidCalendar. Import is one-way for now - title, description, due/start dates, status, priority, and recurrence are read from the server, and an external-owned field cleared upstream (e.g. a completed task reopened) is cleared locally too so the import mirrors the server (#144)
 - Create a multi-day all-day event by dragging the mouse across multiple days on the all-day row, like Google Calendar; the New Event modal opens pre-filled as an all-day event spanning the selected days (#79)

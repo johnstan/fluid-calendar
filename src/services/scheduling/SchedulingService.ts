@@ -1,4 +1,4 @@
-import { AutoScheduleSettings, Task } from "@prisma/client";
+import { AutoScheduleSettings, Schedule, Task } from "@prisma/client";
 
 import { addDays, newDate } from "@/lib/date-utils";
 import { logger } from "@/lib/logger";
@@ -86,6 +86,11 @@ export class SchedulingService {
   }
 
   private userTimeZone?: string;
+  private userSchedules: Schedule[] = [];
+
+  private async loadUserSchedules(userId: string): Promise<void> {
+    this.userSchedules = await prisma.schedule.findMany({ where: { userId } });
+  }
 
   private async loadUserTimeZone(userId: string): Promise<void> {
     const userSettings = await prisma.userSettings.findUnique({
@@ -118,7 +123,8 @@ export class SchedulingService {
     const manager = new TimeSlotManagerImpl(
       settings,
       this.calendarService,
-      this.userTimeZone
+      this.userTimeZone,
+      this.userSchedules
     );
 
     this.endMetric("getTimeSlotManager", startTime);
@@ -135,6 +141,8 @@ export class SchedulingService {
 
     // Resolve the user's timezone so work hours apply in their local time
     await this.loadUserTimeZone(userId);
+    // Named schedules limit when each task may be placed
+    await this.loadUserSchedules(userId);
 
     // Get initial scores for all tasks
     const timeSlotManager = this.getTimeSlotManager();

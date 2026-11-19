@@ -7,15 +7,21 @@ import {
   addMinutes,
   areIntervalsOverlapping,
   differenceInHours,
+  fromZonedTime,
   getDay,
   newDate,
   roundDateUp,
   setHours,
   setMinutes,
-  fromZonedTime,
   toZonedTime,
 } from "@/lib/date-utils";
 import { prisma } from "@/lib/prisma";
+import {
+  ScheduleBlocks,
+  ScheduleLike,
+  parseScheduleBlocks,
+  toMinutes,
+} from "@/lib/schedules";
 
 import { useSettingsStore } from "@/store/settings";
 
@@ -27,6 +33,8 @@ import { SlotScorer } from "./SlotScorer";
 // Import the global Prisma instance
 
 const DEFAULT_TASK_DURATION = 30;
+// Candidate start times inside a schedule block are this far apart
+const SCHEDULE_SLOT_STEP_MINUTES = 15;
 
 export interface TimeSlotManager {
   findAvailableSlots(
@@ -52,11 +60,20 @@ export class TimeSlotManagerImpl implements TimeSlotManager {
   private slotScorer: SlotScorer;
   private timeZone: string;
 
+  // Named schedules (Motion-style) by id, plus the user's default one
+  private schedules = new Map<string, ScheduleBlocks>();
+  private defaultScheduleId: string | null = null;
+
   constructor(
     private settings: AutoScheduleSettings,
     private calendarService: CalendarService,
-    timeZone?: string
+    timeZone?: string,
+    schedules: ScheduleLike[] = []
   ) {
+    for (const s of schedules) {
+      this.schedules.set(s.id, parseScheduleBlocks(s.blocks));
+      if (s.isDefault) this.defaultScheduleId = s.id;
+    }
     // On the server the settings store holds no user state, so callers
     // should pass the user's timezone explicitly (e.g. from UserSettings).
     this.timeZone = timeZone || useSettingsStore.getState().user.timeZone;
@@ -108,15 +125,23 @@ export class TimeSlotManagerImpl implements TimeSlotManager {
         ? task.startDate
         : startDate;
 
-    // 1. Generate potential slots
-    const potentialSlots = this.generatePotentialSlots(
-      task.duration || DEFAULT_TASK_DURATION,
-      effectiveStartDate,
-      endDate
-    );
-
-    // 2. Filter by work hours
-    const workHourSlots = this.filterByWorkHours(potentialSlots);
+    // 1+2. Generate candidate slots: inside the task's schedule if it has one
+    // (or the user's default schedule), otherwise within global work hours
+    const schedule = this.resolveSchedule(task);
+    const workHourSlots = schedule
+      ? this.generateScheduleSlots(
+          task.duration || DEFAULT_TASK_DURATION,
+          effectiveStartDate,
+          endDate,
+          schedule
+        )
+      : this.filterByWorkHours(
+          this.generatePotentialSlots(
+            task.duration || DEFAULT_TASK_DURATION,
+            effectiveStartDate,
+            endDate
+          )
+        );
 
     // 3. Check calendar conflicts
     const availableSlots = await this.removeConflicts(workHourSlots, task);
@@ -282,6 +307,70 @@ export class TimeSlotManagerImpl implements TimeSlotManager {
       localCurrentStart = addMinutes(localCurrentStart, duration);
     }
 
+    return slots;
+  }
+
+  /** The task's own schedule, else the default schedule, else none. */
+  private resolveSchedule(
+    task: Task & { scheduleId?: string | null }
+  ): ScheduleBlocks | null {
+    if (task.scheduleId && this.schedules.has(task.scheduleId)) {
+      return this.schedules.get(task.scheduleId)!;
+    }
+    if (this.defaultScheduleId) {
+      return this.schedules.get(this.defaultScheduleId) ?? null;
+    }
+    return null;
+  }
+
+  /**
+   * Candidate slots that fit entirely inside a schedule's blocks, between
+   * startDate and endDate. Blocks are wall-clock times in the user's timezone.
+   */
+  private generateScheduleSlots(
+    duration: number,
+    startDate: Date,
+    endDate: Date,
+    blocks: ScheduleBlocks
+  ): TimeSlot[] {
+    const slots: TimeSlot[] = [];
+    // Never start sooner than 15 minutes from now (same rule as work hours)
+    const earliest = new Date(
+      Math.max(startDate.getTime(), addMinutes(newDate(), 15).getTime())
+    );
+    const localStart = toZonedTime(earliest, this.timeZone);
+    const localEnd = toZonedTime(endDate, this.timeZone);
+
+    // Walk day by day in local wall-clock time
+    let day = setMinutes(setHours(localStart, 0), 0);
+    day.setSeconds(0, 0);
+    while (day <= localEnd) {
+      for (const block of blocks[String(day.getDay())] ?? []) {
+        const blockEnd = toMinutes(block.end);
+        for (
+          let m = toMinutes(block.start);
+          m + duration <= blockEnd;
+          m += SCHEDULE_SLOT_STEP_MINUTES
+        ) {
+          const localSlotStart = addMinutes(day, m);
+          const start = fromZonedTime(localSlotStart, this.timeZone);
+          if (start < earliest || start >= endDate) continue;
+          slots.push({
+            start,
+            end: fromZonedTime(
+              addMinutes(localSlotStart, duration),
+              this.timeZone
+            ),
+            score: 0,
+            conflicts: [],
+            energyLevel: null,
+            isWithinWorkHours: true,
+            hasBufferTime: false,
+          });
+        }
+      }
+      day = addDays(day, 1);
+    }
     return slots;
   }
 

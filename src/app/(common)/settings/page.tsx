@@ -11,6 +11,7 @@ import { CalendarSettings } from "@/components/settings/CalendarSettings";
 import { ImportExportSettings } from "@/components/settings/ImportExportSettings";
 import { LogViewer } from "@/components/settings/LogViewer";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
+import { ScheduleSettings } from "@/components/settings/ScheduleSettings";
 import { SystemSettings } from "@/components/settings/SystemSettings";
 import { TaskSyncSettings } from "@/components/settings/TaskSyncSettings";
 import { UserManagement } from "@/components/settings/UserManagement";
@@ -45,6 +46,7 @@ type SettingsTab =
   | "user"
   | "calendar"
   | "auto-schedule"
+  | "schedules"
   | "system"
   | "task-sync"
   | "logs"
@@ -70,6 +72,7 @@ export default function SettingsPage() {
       { id: "user", label: "User" },
       { id: "calendar", label: "Calendar" },
       { id: "auto-schedule", label: "Auto-Schedule" },
+      { id: "schedules", label: "Schedules" },
       { id: "task-sync", label: "Task Sync" },
       { id: "notifications", label: "Notifications" },
       { id: "import-export", label: "Import/Export" },
@@ -112,6 +115,7 @@ export default function SettingsPage() {
         "user",
         "calendar",
         "auto-schedule",
+        "schedules",
         "task-sync",
         "system",
         "logs",
@@ -187,6 +191,8 @@ export default function SettingsPage() {
         return <CalendarSettings />;
       case "auto-schedule":
         return <AutoScheduleSettings />;
+      case "schedules":
+        return <ScheduleSettings />;
       case "task-sync":
         return <TaskSyncSettings />;
       case "notifications":
