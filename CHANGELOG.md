@@ -112,6 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Tasks due today (date-only due dates, e.g. from Google Tasks or recurring roll-over, stored as 00:00 UTC) no longer show as overdue from 01:00 on their due day; they become overdue after the end of that day in local time (calendar cards, quick view, Focus Mode queue)
 - Editing a task that belongs to a project (e.g. changing its priority) failed silently since the schedule picker was added: the update mixed a project relation with a plain `scheduleId`, which Prisma rejects. The project is now set as a plain field, and the task editor shows an error if a save fails instead of just staying open
 - Creating, editing or completing a task (and changing calendar events) no longer waits for a full Auto Schedule run: the change saves immediately and tasks are rescheduled in the background (debounced, with a follow-up run if you change something mid-run; the Auto Schedule button shows progress)
 - Focus Mode completion celebration now hides after 1.5 s instead of staying up until the task list reloaded

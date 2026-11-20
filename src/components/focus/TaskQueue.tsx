@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 
 import { format, isBefore, newDate } from "@/lib/date-utils";
 import { logger } from "@/lib/logger";
+import { isTaskOverdue } from "@/lib/task-utils";
 import { cn } from "@/lib/utils";
 
 import { useFocusModeStore } from "@/store/focusMode";
@@ -38,13 +39,7 @@ export function TaskQueue() {
 
   // Past due tasks: not completed, due date in the past, not postponed
   const pastDueTasks = allTasks
-    .filter(
-      (task) =>
-        task.status !== TaskStatus.COMPLETED &&
-        task.dueDate &&
-        isBefore(newDate(task.dueDate), newDate()) &&
-        !task.postponedUntil
-    )
+    .filter((task) => isTaskOverdue(task) && !task.postponedUntil)
     .sort((a, b) => {
       // Sort by due date (oldest first)
       const dateA = a.dueDate ? newDate(a.dueDate).getTime() : 0;
