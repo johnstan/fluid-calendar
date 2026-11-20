@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { IoCarOutline, IoChevronDown } from "react-icons/io5";
 import { toast } from "sonner";
 
+import { useTaskStore } from "@/store/task";
+
 const OPTIONS = [0, 5, 10, 15, 20, 30, 45, 60, 75, 90, 120];
 
 interface TravelState {
@@ -70,8 +72,10 @@ export function EventTravelEditor({ eventId }: { eventId: string }) {
       });
       if (!res.ok) throw new Error(await res.text());
       setState(await res.json());
+      // Reschedule tasks around the new travel time (debounced, background)
+      useTaskStore.getState().queueBackgroundSchedule();
       toast.success("Travel time saved", {
-        description: "Run Auto Schedule to move tasks around it.",
+        description: "Rescheduling tasks around it…",
       });
     } catch {
       setState(previous);

@@ -117,6 +117,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Changing an event's travel time now reschedules tasks automatically (background Auto Schedule), like busy/free changes
 - Editing a recurring event changed every occurrence (the dialog was hard-wired to "all events"). Edits and deletes now apply to this occurrence only by default, with an "Apply to: This event / All events" choice in the event dialog
 - Google Tasks: ticking off a task in the Google Tasks app/website had no effect in FluidCalendar (Google hides completed tasks unless asked), and the disappeared task could even be deleted locally. Completed tasks are now fetched; a completed recurring task rolls forward to its next occurrence (same as completing it in FluidCalendar), is unscheduled for Auto Schedule and reopened in Google with the new due date. Old completed Google tasks are not imported
 - Task list no longer labels past start dates as "Overdue"; only due dates can be overdue
