@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Incremental Google Calendar sync: background syncs fetch only what changed since the last sync (Google sync tokens) and update those events in place, instead of re-downloading the whole year every few minutes. A full re-import still runs once a day, when Google expires the token, and from the sync button (needs the new `CalendarFeed.fullSyncAt` migration)
 - Free events now look like Motion's: a light tint of the calendar colour, a thin outline and dark, readable text, instead of a faded, hatched full-colour card
 - Busy/free and travel time are also available in the event edit dialog (saved immediately, like in the quick view); travel time dropdowns no longer overlap their arrow
 - Busy/free for calendar events: free events (Google "Show as: Free", Outlook "Free") show faded with a dashed, hatched card and no longer block Auto Schedule. Change it from the event quick view (Busy | Free, optionally for all occurrences); Google events are updated in Google Calendar, Fluid's own calendars locally (needs the new `CalendarEvent.isFree` migration)

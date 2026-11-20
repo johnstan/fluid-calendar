@@ -424,7 +424,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    await syncGoogleFeed(feedId, userId);
+    // The sync button always re-imports the whole calendar
+    await syncGoogleFeed(feedId, userId, { full: true });
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

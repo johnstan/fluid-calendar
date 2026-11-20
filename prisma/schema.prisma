@@ -119,6 +119,7 @@ model CalendarFeed {
   updatedAt         DateTime          @updatedAt
   lastSync          DateTime?
   syncToken         String? // For incremental sync
+  fullSyncAt        DateTime? // Last full re-import (Google); incremental syncs in between
   error             String?
   channelId         String? // Google Calendar webhook channel ID
   resourceId        String? // Google Calendar webhook resource ID
