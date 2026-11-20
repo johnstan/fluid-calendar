@@ -62,7 +62,6 @@ const local = (d: Date) =>
   });
 
 describe("schedule-based slot generation", () => {
-  beforeAll(() => jest.useFakeTimers().setSystemTime(NOW));
   afterAll(() => jest.useRealTimers());
 
   const manager = new TimeSlotManagerImpl(settings, calendarService, TZ, [
@@ -80,12 +79,19 @@ describe("schedule-based slot generation", () => {
     },
   ]) as unknown as Internals;
 
-  const slots = manager.generateScheduleSlots(
-    30,
-    NOW,
-    new Date("2026-11-22T23:00:00Z"), // through Sunday
-    eveningsAndWeekends
-  );
+  // Generate after freezing the clock: slot generation skips the past, so
+  // building this at describe time used the real date and broke once the
+  // fixture's Thursday was over
+  let slots: TimeSlot[];
+  beforeAll(() => {
+    jest.useFakeTimers().setSystemTime(NOW);
+    slots = manager.generateScheduleSlots(
+      30,
+      NOW,
+      new Date("2026-11-22T23:00:00Z"), // through Sunday
+      eveningsAndWeekends
+    );
+  });
 
   it("only produces slots inside the schedule's blocks, in local time", () => {
     const first = slots.slice(0, 3).map((s) => local(s.start));
