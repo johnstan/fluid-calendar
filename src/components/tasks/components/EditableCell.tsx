@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { isThisWeek, isThisYear, isToday, isTomorrow } from "date-fns";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { BsListCheck, BsTextLeft } from "react-icons/bs";
 import { HiCheck, HiExclamation, HiX } from "react-icons/hi";
 
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import {
   newDate,
   newDateFromYMD,
 } from "@/lib/date-utils";
+import { checklistProgress } from "@/lib/markdown-lite";
 
 import { useProjectStore } from "@/store/project";
 
@@ -41,6 +43,8 @@ interface EditableCellProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   value: any;
   onSave: (task: Task) => void;
+  /** If set, clicking opens this (e.g. the full task card) instead of inline editing */
+  onOpen?: () => void;
 }
 
 export function EditableCell({
@@ -48,6 +52,7 @@ export function EditableCell({
   field,
   value,
   onSave,
+  onOpen,
 }: EditableCellProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
@@ -100,6 +105,10 @@ export function EditableCell({
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (onOpen) {
+      onOpen();
+      return;
+    }
     setIsEditing(true);
   };
 
@@ -122,8 +131,11 @@ export function EditableCell({
       >
         {field === "title" ? (
           <div>
-            <div className="task-title text-sm font-medium text-foreground">
-              {value}
+            <div className="task-title flex items-center gap-1.5 text-sm font-medium text-foreground">
+              <span>{value}</span>
+              {task.description?.trim() && (
+                <DescriptionMarker description={task.description} />
+              )}
             </div>
 
             {task.tags.length > 0 && (
@@ -529,3 +541,23 @@ const formatContextualDate = (
   }
   return { text, isOverdue, isFuture };
 };
+
+/** Shows that a task has a description, with checklist progress if any */
+function DescriptionMarker({ description }: { description: string }) {
+  const { done, total } = checklistProgress(description);
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-0.5 text-xs font-normal text-muted-foreground"
+      title={
+        total ? `Checklist: ${done} of ${total} done` : "Has a description"
+      }
+    >
+      {total ? (
+        <BsListCheck className="h-3.5 w-3.5" />
+      ) : (
+        <BsTextLeft className="h-3.5 w-3.5" />
+      )}
+      {total > 0 && `${done}/${total}`}
+    </span>
+  );
+}

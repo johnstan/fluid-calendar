@@ -152,6 +152,7 @@ export function TaskRow({
             field="title"
             value={task.title}
             onSave={onInlineEdit}
+            onOpen={() => onEdit(task)}
           />
 
           {isFutureTask && (
