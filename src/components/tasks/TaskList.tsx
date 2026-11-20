@@ -101,6 +101,15 @@ export function TaskList({
     recurrence,
   ]);
 
+  // Total for the counter: open tasks only. Completed copies of recurring
+  // tasks pile up daily and would make the total meaningless
+  const openTaskCount = useMemo(
+    () =>
+      projectFilteredTasks.filter((t) => t.status !== TaskStatus.COMPLETED)
+        .length,
+    [projectFilteredTasks]
+  );
+
   // Apply sorting
   const sortedTasks = useMemo(() => {
     return [...filteredTasks].sort((a, b) => {
@@ -292,10 +301,11 @@ export function TaskList({
         <span
           className="ml-auto whitespace-nowrap text-sm text-muted-foreground"
           aria-live="polite"
+          title="Total counts open tasks (to do and in progress)"
         >
-          {filteredTasks.length === projectFilteredTasks.length
+          {filteredTasks.length >= openTaskCount
             ? `${filteredTasks.length} ${filteredTasks.length === 1 ? "task" : "tasks"}`
-            : `${filteredTasks.length} of ${projectFilteredTasks.length} tasks`}
+            : `${filteredTasks.length} of ${openTaskCount} tasks`}
         </span>
       </div>
 

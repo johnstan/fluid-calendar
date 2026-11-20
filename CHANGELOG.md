@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Task list shows how many tasks are listed ("84 tasks", or "12 of 84 tasks" when filtered)
+- Task list shows how many tasks are listed ("84 tasks", or "12 of 84 tasks" when filtered); the total counts open tasks (to do and in progress) only, not completed ones
 - Task comments: add notes, ideas and follow-ups to a task from its card (same formatting as descriptions, including clickable checklists); edit or delete them, with timestamps. Saved immediately and kept in FluidCalendar only (not synced to Google Tasks). Needs the new `TaskComment` migration
 - Task list: clicking a task's title opens the full task card (description, checklist, schedule…) for editing; titles with a description show a small marker, with checklist progress (e.g. 2/5)
 - Incremental Google Calendar sync: background syncs fetch only what changed since the last sync (Google sync tokens) and update those events in place, instead of re-downloading the whole year every few minutes. A full re-import still runs once a day, when Google expires the token, and from the sync button (needs the new `CalendarFeed.fullSyncAt` migration)
