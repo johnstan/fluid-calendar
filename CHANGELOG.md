@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Free events now look like Motion's: a light tint of the calendar colour, a thin outline and dark, readable text, instead of a faded, hatched full-colour card
 - Busy/free and travel time are also available in the event edit dialog (saved immediately, like in the quick view); travel time dropdowns no longer overlap their arrow
 - Busy/free for calendar events: free events (Google "Show as: Free", Outlook "Free") show faded with a dashed, hatched card and no longer block Auto Schedule. Change it from the event quick view (Busy | Free, optionally for all occurrences); Google events are updated in Google Calendar, Fluid's own calendars locally (needs the new `CalendarEvent.isFree` migration)
 - Recurring tasks: pick the days of the week a task repeats on (with Every day / Weekdays / Weekends shortcuts) and see a plain-English summary in the editor; the task list shows the days next to the repeat icon ("Mon, Wed", "Weekdays") and the calendar quick view shows "Repeats every week on …". Choosing weeks no longer silently resets the rule to Mondays only

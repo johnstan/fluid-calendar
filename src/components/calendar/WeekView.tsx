@@ -16,6 +16,7 @@ import { getEventEditability } from "@/lib/calendar-drag";
 import { getSelectionRange } from "@/lib/calendar-selection";
 import { useEventModalStore } from "@/lib/commands/groups/calendar";
 import { newDate } from "@/lib/date-utils";
+import { eventColorProps } from "@/lib/event-colors";
 
 import { useCalendarStore } from "@/store/calendar";
 import { useSettingsStore } from "@/store/settings";
@@ -54,6 +55,7 @@ export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
       location?: string;
       backgroundColor: string;
       borderColor: string;
+      textColor?: string;
       allDay: boolean;
       classNames: string[];
       startEditable: boolean;
@@ -88,14 +90,12 @@ export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
           start: newDate(item.start),
           end: newDate(item.end),
           location: item.location,
-          backgroundColor:
+          ...eventColorProps(
             item.feedId === "tasks"
               ? item.color || "#4f46e5"
               : feeds.find((f) => f.id === item.feedId)?.color || "#3b82f6",
-          borderColor:
-            item.feedId === "tasks"
-              ? item.color || "#4f46e5"
-              : feeds.find((f) => f.id === item.feedId)?.color || "#3b82f6",
+            item.isFree
+          ),
           allDay: item.allDay,
           classNames: [
             item.extendedProps?.isTask ? "calendar-task" : "calendar-event",

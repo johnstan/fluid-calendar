@@ -62,8 +62,11 @@ export const CalendarEventContent = memo(function CalendarEventContent({
     timeFormat: userSettings.timeFormat,
     timeZone: calendarTimeZone,
   });
+  // Free events have a pale tinted background, so use their border colour
   const eventColor =
-    eventInfo.event.backgroundColor ||
+    (eventInfo.event.extendedProps.isFree
+      ? eventInfo.event.borderColor
+      : eventInfo.event.backgroundColor) ||
     eventInfo.event.borderColor ||
     DEFAULT_EVENT_COLOR;
 
