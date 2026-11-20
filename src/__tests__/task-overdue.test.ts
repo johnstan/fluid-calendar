@@ -1,4 +1,4 @@
-import { dueDeadline, isTaskOverdue } from "@/lib/task-utils";
+import { dueDeadline, isScheduledLate, isTaskOverdue } from "@/lib/task-utils";
 
 // Tests run with TZ=UTC, so "local end of day" is 23:59:59.999Z
 describe("due dates and overdue", () => {
@@ -25,5 +25,35 @@ describe("due dates and overdue", () => {
       )
     ).toBe(false);
     expect(isTaskOverdue({ dueDate: null, status: "todo" })).toBe(false);
+  });
+});
+
+describe("isScheduledLate", () => {
+  const due = "2026-11-20T00:00:00.000Z"; // due Fri 20 Nov (end of day)
+  it("flags open tasks scheduled after the end of their due day", () => {
+    expect(
+      isScheduledLate({
+        dueDate: due,
+        scheduledEnd: "2026-11-22T13:15:00Z",
+        status: "todo",
+      })
+    ).toBe(true);
+    expect(
+      isScheduledLate({
+        dueDate: due,
+        scheduledEnd: "2026-11-20T21:00:00Z",
+        status: "todo",
+      })
+    ).toBe(false);
+    expect(
+      isScheduledLate({
+        dueDate: due,
+        scheduledEnd: "2026-11-22T13:15:00Z",
+        status: "completed",
+      })
+    ).toBe(false);
+    expect(
+      isScheduledLate({ dueDate: null, scheduledEnd: "2026-11-22T13:15:00Z" })
+    ).toBe(false);
   });
 });

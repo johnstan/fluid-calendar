@@ -10,6 +10,7 @@ import {
   IoPeopleOutline,
   IoRepeat,
   IoTimeOutline,
+  IoWarning,
 } from "react-icons/io5";
 
 import {
@@ -21,7 +22,7 @@ import {
 import { format, isFutureDate, newDate } from "@/lib/date-utils";
 import { MarkdownLite, toggleChecklistLine } from "@/lib/markdown-lite";
 import { describeTaskRecurrence } from "@/lib/task-recurrence";
-import { isTaskOverdue } from "@/lib/task-utils";
+import { isScheduledLate, isTaskOverdue } from "@/lib/task-utils";
 import { cn } from "@/lib/utils";
 
 import { useTaskStore } from "@/store/task";
@@ -273,6 +274,14 @@ export function EventQuickView({
 
           {isTask && taskItem && (
             <div className="space-y-2 text-sm text-muted-foreground">
+              {isScheduledLate(taskItem) && (
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                  <IoWarning className="h-4 w-4 flex-shrink-0" />
+                  <span>
+                    Scheduled after its due date: no free slot was found in time
+                  </span>
+                </div>
+              )}
               {taskItem.isRecurring &&
                 describeTaskRecurrence(taskItem.recurrenceRule) && (
                   <div className="flex items-center gap-2">

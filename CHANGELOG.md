@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Tasks that Auto Schedule had to place after their due date (no free slot in time) are flagged as late: amber marker and warning icon on the calendar card, a "Late" badge in the task list, and a note in the quick view
 - Task list shows how many tasks are listed ("84 tasks", or "12 of 84 tasks" when filtered); the total counts open tasks (to do and in progress) only, not completed ones
 - Task comments: add notes, ideas and follow-ups to a task from its card (same formatting as descriptions, including clickable checklists); edit or delete them, with timestamps. Saved immediately and kept in FluidCalendar only (not synced to Google Tasks). Needs the new `TaskComment` migration
 - Task list: clicking a task's title opens the full task card (description, checklist, schedule…) for editing; titles with a description show a small marker, with checklist progress (e.g. 2/5)
@@ -117,6 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Completing a recurring task (in FluidCalendar or Google Tasks) kept its old time slot and lock, so it stayed in today's agenda although it had moved to its next occurrence; the slot and lock are now cleared for Auto Schedule to place the next one
 - Changing an event's travel time now reschedules tasks automatically (background Auto Schedule), like busy/free changes
 - Editing a recurring event changed every occurrence (the dialog was hard-wired to "all events"). Edits and deletes now apply to this occurrence only by default, with an "Apply to: This event / All events" choice in the event dialog
 - Google Tasks: ticking off a task in the Google Tasks app/website had no effect in FluidCalendar (Google hides completed tasks unless asked), and the disappeared task could even be deleted locally. Completed tasks are now fetched; a completed recurring task rolls forward to its next occurrence (same as completing it in FluidCalendar), is unscheduled for Auto Schedule and reopened in Google with the new due date. Old completed Google tasks are not imported

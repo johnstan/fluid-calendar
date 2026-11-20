@@ -22,6 +22,7 @@ import {
   describeTaskRecurrence,
   describeTaskRecurrenceShort,
 } from "@/lib/task-recurrence";
+import { isScheduledLate } from "@/lib/task-utils";
 import { cn } from "@/lib/utils";
 
 import { Task, TaskStatus } from "@/types/task";
@@ -170,6 +171,14 @@ export function TaskRow({
             >
               <HiRefresh className="h-4 w-4" />
               {describeTaskRecurrenceShort(task.recurrenceRule)}
+            </span>
+          )}
+          {isScheduledLate(task) && (
+            <span
+              className="inline-flex shrink-0 items-center gap-0.5 rounded bg-amber-500/15 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"
+              title={`Scheduled ${format(newDate(task.scheduledEnd!), "EEE d MMM HH:mm")}, after its due date. Auto Schedule found no free slot in time — consider another schedule or a longer window.`}
+            >
+              Late
             </span>
           )}
           {task.isAutoScheduled && (

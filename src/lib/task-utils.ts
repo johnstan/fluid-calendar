@@ -48,3 +48,20 @@ export function isTaskOverdue(
     dueDeadline(task.dueDate) < now
   );
 }
+
+/**
+ * True when Auto Schedule placed an open task after its due date (no slot
+ * was free in time), so the calendar and lists can flag it as late.
+ */
+export function isScheduledLate(task: {
+  dueDate?: Date | string | null;
+  scheduledEnd?: Date | string | null;
+  status?: string;
+}): boolean {
+  return (
+    !!task.dueDate &&
+    !!task.scheduledEnd &&
+    task.status !== TaskStatus.COMPLETED &&
+    newDate(task.scheduledEnd) > dueDeadline(task.dueDate)
+  );
+}

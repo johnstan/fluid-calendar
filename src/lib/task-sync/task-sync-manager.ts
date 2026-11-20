@@ -1111,6 +1111,7 @@ export class TaskSyncManager {
           scheduledStart: null,
           scheduledEnd: null,
           scheduleScore: null,
+          scheduleLocked: false,
           lastSyncedAt: newDate(),
         },
       }),

@@ -24,7 +24,7 @@ jest.mock("@/lib/logger", () => ({
 }));
 jest.mock("@/lib/prisma", () => ({
   prisma: {
-    task: { findUnique: jest.fn(), update: jest.fn() },
+    task: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
     taskListMapping: { findFirst: jest.fn() },
   },
 }));
@@ -79,5 +79,33 @@ describe("PUT /api/tasks/[id]", () => {
 
     await put({ priority: "low" });
     expect("projectId" in mockUpdate.mock.calls[1][0].data).toBe(false);
+  });
+
+  it("completing a recurring task frees its slot and lock for the next occurrence", async () => {
+    mockFind.mockResolvedValue({
+      id: "t1",
+      title: "Update WBSO hours",
+      status: "todo",
+      isRecurring: true,
+      recurrenceRule: "FREQ=WEEKLY;BYDAY=FR",
+      dueDate: new Date("2026-11-20T00:00:00.000Z"),
+      startDate: new Date("2026-11-20T00:00:00.000Z"),
+      scheduledStart: new Date("2026-11-20T17:15:00.000Z"),
+      scheduleLocked: true,
+      projectId: null,
+      tags: [],
+    });
+    (prisma.task.create as jest.Mock).mockResolvedValue({ id: "copy" });
+
+    const res = await put({ status: "completed" });
+    expect(res!.status).toBe(200);
+    const { data } = mockUpdate.mock.calls[0][0];
+    expect(data).toMatchObject({
+      status: "todo",
+      dueDate: new Date("2026-11-27T00:00:00.000Z"),
+      scheduledStart: null,
+      scheduledEnd: null,
+      scheduleLocked: false,
+    });
   });
 });

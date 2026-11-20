@@ -1,10 +1,15 @@
 import { memo } from "react";
 
 import type { EventContentArg } from "@fullcalendar/core";
-import { IoCheckmarkCircle, IoRepeat, IoTimeOutline } from "react-icons/io5";
+import {
+  IoCheckmarkCircle,
+  IoRepeat,
+  IoTimeOutline,
+  IoWarning,
+} from "react-icons/io5";
 
 import { getMonthEventDisplay } from "@/lib/calendar-event-display";
-import { isTaskOverdue } from "@/lib/task-utils";
+import { isScheduledLate, isTaskOverdue } from "@/lib/task-utils";
 import { cn } from "@/lib/utils";
 
 import { useSettingsStore } from "@/store/settings";
@@ -43,6 +48,11 @@ export const CalendarEventContent = memo(function CalendarEventContent({
   const isShort = duration > 0 && duration <= 15 * 60 * 1000;
 
   const isOverdue = isTask && isTaskOverdue({ dueDate, status });
+  // Placed after its due date (no free slot in time); overdue wins
+  const isLate =
+    isTask &&
+    !isOverdue &&
+    isScheduledLate({ dueDate, scheduledEnd: eventInfo.event.end, status });
 
   // Issue #95: surface the start time and calendar color for timed events in
   // month/multi-month views so they read as clearly as the colored all-day
@@ -73,7 +83,7 @@ export const CalendarEventContent = memo(function CalendarEventContent({
   return (
     <div
       data-testid={isTask ? "calendar-task" : "calendar-event"}
-      title={title}
+      title={isLate ? `${title} (scheduled after its due date)` : title}
       className={cn(
         "flex h-full flex-col justify-start overflow-hidden text-[11px]",
         isShort ? "gap-0 leading-none" : "gap-1",
@@ -87,6 +97,7 @@ export const CalendarEventContent = memo(function CalendarEventContent({
             "border-gray-500": status === TaskStatus.TODO,
           },
         isOverdue && "border-red-500 font-medium text-red-600",
+        isLate && "border-amber-500",
         status === TaskStatus.COMPLETED && "text-gray-500 line-through"
       )}
     >
@@ -126,6 +137,12 @@ export const CalendarEventContent = memo(function CalendarEventContent({
               <span className="mr-1 font-normal tabular-nums opacity-75">
                 {timeText}
               </span>
+            )}
+            {isLate && (
+              <IoWarning
+                aria-label="Scheduled after its due date"
+                className="mr-0.5 inline h-3 w-3 align-[-1px] text-amber-500"
+              />
             )}
             {title}
           </div>

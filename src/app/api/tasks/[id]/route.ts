@@ -163,6 +163,12 @@ export async function PUT(
           updates.startDate = nextStartDate; // Update the start date if calculated
           updates.status = TaskStatus.TODO;
           updates.lastCompletedDate = newDate();
+          // The slot (and any lock on it) belonged to the occurrence just
+          // completed: free it so Auto Schedule places the next one
+          updates.scheduledStart = null;
+          updates.scheduledEnd = null;
+          updates.scheduleScore = null;
+          updates.scheduleLocked = false;
         }
       } catch (error) {
         logger.error(
