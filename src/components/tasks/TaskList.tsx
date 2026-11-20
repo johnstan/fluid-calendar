@@ -288,6 +288,15 @@ export function TaskList({
             Hide upcoming tasks
           </label>
         </div>
+
+        <span
+          className="ml-auto whitespace-nowrap text-sm text-muted-foreground"
+          aria-live="polite"
+        >
+          {filteredTasks.length === projectFilteredTasks.length
+            ? `${filteredTasks.length} ${filteredTasks.length === 1 ? "task" : "tasks"}`
+            : `${filteredTasks.length} of ${projectFilteredTasks.length} tasks`}
+        </span>
       </div>
 
       <div className="min-w-0 flex-1 rounded-lg border bg-background">
