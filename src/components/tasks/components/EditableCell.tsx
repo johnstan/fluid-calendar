@@ -209,7 +209,9 @@ export function EditableCell({
             }`}
           >
             {value
-              ? formatContextualDate(newDate(value)).text
+              ? // A start date in the past isn't overdue; only due dates are
+                formatContextualDate(newDate(value), { markOverdue: false })
+                  .text
               : "Set start date"}
           </span>
         ) : field === "projectId" ? (
@@ -494,7 +496,10 @@ export function EditableCell({
 }
 
 // Helper functions
-const formatContextualDate = (date: Date) => {
+const formatContextualDate = (
+  date: Date,
+  { markOverdue = true }: { markOverdue?: boolean } = {}
+) => {
   // For UTC midnight dates (e.g. 2025-03-10T00:00:00.000Z),
   // just use the date components to create a local date
   const localDate = newDateFromYMD(
@@ -505,7 +510,7 @@ const formatContextualDate = (date: Date) => {
   const now = newDate();
   now.setHours(0, 0, 0, 0);
 
-  const isOverdue = localDate < now && !isToday(localDate);
+  const isOverdue = markOverdue && localDate < now && !isToday(localDate);
   const isFuture = isFutureDate(localDate);
   let text = "";
   if (isToday(localDate)) {

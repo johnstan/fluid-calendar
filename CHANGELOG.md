@@ -114,6 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Task list no longer labels past start dates as "Overdue"; only due dates can be overdue
 - Free events sometimes showed as busy after opening the calendar: the server-rendered event list left out the busy/free flag until the next reload. The calendar now also refreshes events and tasks when you return to the tab
 - Moving or editing a calendar event failed if the page had been open for a while: each Google sync gave every event a new database id. Events now keep their id across syncs
 - Editing one occurrence of a recurring Google event could change a different occurrence (the instance was looked up by the new start time); edits now apply to exactly that occurrence and update it in place instead of rewriting the series
