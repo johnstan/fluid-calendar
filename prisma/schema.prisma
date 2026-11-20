@@ -89,6 +89,7 @@ model User {
   integrationSettings  IntegrationSettings?
   dataSettings         DataSettings?
   tasks                Task[]
+  taskComments         TaskComment[]
   projects             Project[]
   connectedAccounts    ConnectedAccount[]
   tags                 Tag[]
@@ -230,6 +231,7 @@ model Task {
 
   // Organization
   tags Tag[]
+  comments TaskComment[]
 
   // Recurrence
   isRecurring       Boolean   @default(false)
@@ -705,4 +707,19 @@ model EventTravelTime {
   updatedAt     DateTime @updatedAt
 
   @@unique([userId, eventKey])
+}
+
+/// Notes / ideas / follow-ups on a task (Markdown, like descriptions).
+/// Local to FluidCalendar; not synced to external task providers.
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([taskId, createdAt])
 }

@@ -42,6 +42,7 @@ import {
 
 import { DescriptionEditor } from "./DescriptionEditor";
 import { RecurrenceEditor } from "./RecurrenceEditor";
+import { TaskComments } from "./TaskComments";
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -623,6 +624,13 @@ export function TaskModal({
               </div>
             )}
           </div>
+
+          {/* Comments save on their own; only for existing tasks */}
+          {task?.id && (
+            <div className="border-t pt-4">
+              <TaskComments taskId={task.id} />
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 border-t pt-4">
             <Button type="button" variant="outline" onClick={onClose}>
