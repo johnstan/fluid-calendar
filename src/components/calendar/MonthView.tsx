@@ -36,8 +36,13 @@ interface MonthViewProps {
 }
 
 export function MonthView({ currentDate, onDateClick }: MonthViewProps) {
-  const { feeds, getAllCalendarItems, isLoading, removeEvent } =
-    useCalendarStore();
+  const {
+    feeds,
+    getAllCalendarItems,
+    isLoading,
+    removeEvent,
+    events: storeEvents,
+  } = useCalendarStore();
   const { user: userSettings } = useSettingsStore();
   const { updateTask } = useTaskStore();
   const [selectedEvent, setSelectedEvent] = useState<Partial<CalendarEvent>>();
@@ -141,7 +146,14 @@ export function MonthView({ currentDate, onDateClick }: MonthViewProps) {
         view: calendar.view,
       });
     }
-  }, [isLoading, feeds, userSettings.timeZone, handleDatesSet, tasks]);
+  }, [
+    isLoading,
+    feeds,
+    storeEvents,
+    userSettings.timeZone,
+    handleDatesSet,
+    tasks,
+  ]);
 
   // Update calendar date when currentDate changes
   useEffect(() => {

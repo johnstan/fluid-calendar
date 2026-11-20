@@ -118,6 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A calendar left open (e.g. on a Mac, switching between apps) didn't show changes until a page refresh: it now reloads on window focus as well as tab switches, every 5 minutes while visible, and all calendar views redraw when events change
 - Completing a recurring task (in FluidCalendar or Google Tasks) kept its old time slot and lock, so it stayed in today's agenda although it had moved to its next occurrence; the slot and lock are now cleared for Auto Schedule to place the next one
 - Changing an event's travel time now reschedules tasks automatically (background Auto Schedule), like busy/free changes
 - Editing a recurring event changed every occurrence (the dialog was hard-wired to "all events"). Edits and deletes now apply to this occurrence only by default, with an "Apply to: This event / All events" choice in the event dialog

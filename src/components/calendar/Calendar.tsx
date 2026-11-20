@@ -76,19 +76,28 @@ export function Calendar({
     useTaskStore.getState().fetchTasks();
   }, [initialFeeds, initialEvents, setFeeds, setEvents]);
 
-  // Coming back to the tab: reload events and tasks so the calendar shows
-  // what background syncs and Auto Schedule changed in the meantime
+  // Keep the calendar current while the page stays open: reload events and
+  // tasks when you come back to it (tab switch or window focus; a Mac app
+  // switch only fires "focus") and every 5 minutes while it's visible, so
+  // background syncs and Auto Schedule runs show up without a page refresh
   useEffect(() => {
     let lastRefresh = Date.now();
-    const onVisible = () => {
+    const refresh = (minGapMs: number) => {
       if (document.visibilityState !== "visible") return;
-      if (Date.now() - lastRefresh < 30_000) return;
+      if (Date.now() - lastRefresh < minGapMs) return;
       lastRefresh = Date.now();
       void useCalendarStore.getState().loadFromDatabase();
       void useTaskStore.getState().fetchTasks();
     };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    const onReturn = () => refresh(30_000);
+    document.addEventListener("visibilitychange", onReturn);
+    window.addEventListener("focus", onReturn);
+    const timer = window.setInterval(() => refresh(4 * 60_000), 5 * 60_000);
+    return () => {
+      document.removeEventListener("visibilitychange", onReturn);
+      window.removeEventListener("focus", onReturn);
+      window.clearInterval(timer);
+    };
   }, []);
 
   const handlePrevWeek = () => {

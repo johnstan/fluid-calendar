@@ -36,8 +36,13 @@ interface DayViewProps {
 }
 
 export function DayView({ currentDate, onDateClick }: DayViewProps) {
-  const { feeds, getAllCalendarItems, isLoading, removeEvent } =
-    useCalendarStore();
+  const {
+    feeds,
+    getAllCalendarItems,
+    isLoading,
+    removeEvent,
+    events: storeEvents,
+  } = useCalendarStore();
   const { user: userSettings, calendar: calendarSettings } = useSettingsStore();
   const { updateTask } = useTaskStore();
   const [selectedEvent, setSelectedEvent] = useState<Partial<CalendarEvent>>();
@@ -144,7 +149,14 @@ export function DayView({ currentDate, onDateClick }: DayViewProps) {
         view: calendar.view,
       });
     }
-  }, [isLoading, feeds, userSettings.timeZone, handleDatesSet, tasks]);
+  }, [
+    isLoading,
+    feeds,
+    storeEvents,
+    userSettings.timeZone,
+    handleDatesSet,
+    tasks,
+  ]);
 
   // Update calendar date when currentDate changes
   useEffect(() => {

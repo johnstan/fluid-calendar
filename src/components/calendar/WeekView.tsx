@@ -36,8 +36,13 @@ interface WeekViewProps {
 }
 
 export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
-  const { feeds, getAllCalendarItems, isLoading, removeEvent } =
-    useCalendarStore();
+  const {
+    feeds,
+    getAllCalendarItems,
+    isLoading,
+    removeEvent,
+    events: storeEvents,
+  } = useCalendarStore();
   const { user: userSettings, calendar: calendarSettings } = useSettingsStore();
   const { updateTask } = useTaskStore();
   const [selectedEvent, setSelectedEvent] = useState<Partial<CalendarEvent>>();
@@ -147,7 +152,14 @@ export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
         view: calendar.view,
       });
     }
-  }, [isLoading, feeds, userSettings.timeZone, handleDatesSet, tasks]);
+  }, [
+    isLoading,
+    feeds,
+    storeEvents,
+    userSettings.timeZone,
+    handleDatesSet,
+    tasks,
+  ]);
 
   // Update calendar date when currentDate changes
   useEffect(() => {
