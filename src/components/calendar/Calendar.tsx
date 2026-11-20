@@ -76,6 +76,21 @@ export function Calendar({
     useTaskStore.getState().fetchTasks();
   }, [initialFeeds, initialEvents, setFeeds, setEvents]);
 
+  // Coming back to the tab: reload events and tasks so the calendar shows
+  // what background syncs and Auto Schedule changed in the meantime
+  useEffect(() => {
+    let lastRefresh = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastRefresh < 30_000) return;
+      lastRefresh = Date.now();
+      void useCalendarStore.getState().loadFromDatabase();
+      void useTaskStore.getState().fetchTasks();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
   const handlePrevWeek = () => {
     if (view === "month" || view === "multiMonth") {
       const newDate = new Date(currentDate);

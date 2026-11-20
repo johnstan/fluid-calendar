@@ -23,7 +23,6 @@ export default async function HomePage() {
     secret: process.env.NEXTAUTH_SECRET,
   });
 
-
   const userId = token?.sub;
 
   let feeds: CalendarFeed[] = [];
@@ -102,6 +101,7 @@ export default async function HomePage() {
       isRecurring: event.isRecurring,
       recurrenceRule: event.recurrenceRule || undefined,
       allDay: event.allDay,
+      isFree: event.isFree,
       status: event.status as EventStatus | undefined,
       sequence: event.sequence || undefined,
       created: event.created || undefined,
