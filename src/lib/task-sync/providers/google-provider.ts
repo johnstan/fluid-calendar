@@ -72,7 +72,10 @@ export class GoogleTaskProvider implements TaskProviderInterface {
 
       do {
         type TasksListParams = tasks_v1.Params$Resource$Tasks$List;
-        const params: TasksListParams = { tasklist: listId, pageToken } as TasksListParams;
+        // showHidden: tasks completed in the Google Tasks apps/web become
+        // "hidden" and are otherwise left out, which made a completion look
+        // like the task had disappeared (and could delete the local copy)
+        const params: TasksListParams = { tasklist: listId, pageToken, showHidden: true } as TasksListParams;
 
         if (options) {
           if (options.includeCompleted === false) params.showCompleted = false;
@@ -140,7 +143,11 @@ export class GoogleTaskProvider implements TaskProviderInterface {
       if (updates.title !== undefined) body.title = updates.title;
       if (updates.description !== undefined) body.notes = updates.description || undefined;
       if (updates.dueDate !== undefined) body.due = updates.dueDate ? new Date(updates.dueDate).toISOString() : null;
-      if (updates.status !== undefined) body.status = this.mapStatusToGoogle(updates.status as string | null);
+      if (updates.status !== undefined) {
+        body.status = this.mapStatusToGoogle(updates.status as string | null);
+        // Reopening a completed task: clear its completion time as well
+        if (body.status === "needsAction") body.completed = null;
+      }
 
       const res = await this.client.tasks.patch({ tasklist: listId, task: taskId, requestBody: body });
 

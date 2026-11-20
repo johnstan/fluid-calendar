@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { Task } from "@prisma/client";
-import { RRule } from "rrule";
 
 import { authenticateRequest } from "@/lib/auth/api-auth";
 import { newDate } from "@/lib/date-utils";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
+import { computeNextOccurrence } from "@/lib/recurring-task";
 import {
   deleteTaskBlockEvent,
   schedulePushTaskBlock,
@@ -114,50 +114,20 @@ export async function PUT(
       task.recurrenceRule
     ) {
       try {
-        // Normalize the recurrence rule to ensure compatibility with RRule
-        const standardRecurrenceRule = normalizeRecurrenceRule(
-          task.recurrenceRule
-        );
-
-        const rrule = RRule.fromString(standardRecurrenceRule!);
-
-        // For tasks, we only care about the date part
-        const baseDate = newDate(task.dueDate || newDate());
-        // Set to start of day in UTC
-        baseDate.setUTCHours(0, 0, 0, 0);
-
-        // Add one day to the base date to ensure we get the next occurrence
-        const searchDate = newDate(baseDate);
-        searchDate.setDate(searchDate.getDate() + 1);
-
-        // Get next occurrence and ensure it's just a date
-        const nextOccurrence = rrule.after(searchDate);
-        if (nextOccurrence) {
-          nextOccurrence.setUTCHours(0, 0, 0, 0);
-        }
+        const next = computeNextOccurrence(task);
+        const baseDate =
+          next?.completedDueDate ?? newDate(task.dueDate || newDate());
+        const nextOccurrence = next?.dueDate;
 
         if (nextOccurrence) {
-          // Calculate the time delta between start date and due date (if both exist)
-          let nextStartDate = undefined;
-          if (task.startDate && task.dueDate) {
-            // Calculate the number of days between the original start and due dates
-            const startToDueDelta = Math.round(
-              (task.dueDate.getTime() - task.startDate.getTime()) /
-                (1000 * 60 * 60 * 24)
-            );
-
-            // Apply the same delta to the new due date to get the new start date
-            const newStartDate = new Date(nextOccurrence);
-            newStartDate.setDate(newStartDate.getDate() - startToDueDelta);
-            nextStartDate = newStartDate;
-
+          const nextStartDate = next?.startDate;
+          if (nextStartDate) {
             logger.info(
               "Calculated new start date for recurring task",
               {
                 taskId: task.id,
-                originalStartDate: task.startDate?.toISOString(),
-                originalDueDate: task.dueDate?.toISOString(),
-                deltaInDays: startToDueDelta,
+                originalStartDate: task.startDate?.toISOString() ?? null,
+                originalDueDate: task.dueDate?.toISOString() ?? null,
                 newDueDate: nextOccurrence.toISOString(),
                 newStartDate: nextStartDate.toISOString(),
               },

@@ -123,6 +123,57 @@ it.each(["new", "existing", "reopened"])(
   }
 );
 
+it("skips completed Google tasks from before the last sync that were never imported", async () => {
+  jest.clearAllMocks();
+  const client = {
+    tasks: {
+      list: jest.fn().mockResolvedValue({
+        data: {
+          items: [
+            {
+              id: "old",
+              title: "Done in March",
+              status: "completed",
+              completed: "2026-03-01T10:00:00.000Z",
+              updated: "2026-03-01T10:00:00.000Z",
+            },
+            {
+              id: "fresh",
+              title: "Done just now",
+              status: "completed",
+              completed: "2026-11-20T12:30:00.000Z",
+              updated: "2026-11-20T12:30:00.000Z",
+            },
+          ],
+        },
+      }),
+    },
+  } as unknown as ReturnType<typeof import("googleapis").google.tasks>;
+  const manager = new TaskSyncManager();
+  jest
+    .spyOn(manager, "getProvider")
+    .mockResolvedValue(new GoogleTaskProvider(client, "account-1", "user-1"));
+  mockPrisma.taskListMapping.findUnique.mockResolvedValue({
+    id: "map-google",
+    providerId: "prov-google",
+    projectId: "proj-1",
+    externalListId: "list-1",
+    isAutoScheduled: false,
+    lastSyncedAt: new Date("2026-11-20T12:00:00.000Z"),
+    provider: { id: "prov-google", type: "GOOGLE", userId: "user-1" },
+  });
+  mockPrisma.task.findMany.mockResolvedValue([]);
+
+  const result = await manager.syncTaskList("map-google");
+
+  expect(result.errors).toEqual([]);
+  expect(mockPrisma.task.create).toHaveBeenCalledTimes(1);
+  expect(mockPrisma.task.create.mock.calls[0][0].data).toMatchObject({
+    title: "Done just now",
+    externalTaskId: "fresh",
+  });
+});
+
 /**
  * A provider that reports it does not support write-back and throws on any
  * write call, mirroring the CalDAV import-only provider (GitHub issue #144).

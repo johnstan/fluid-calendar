@@ -18,14 +18,16 @@ import { logger } from "@/lib/logger";
 // Import utility to get Microsoft Graph client
 import { getMsGraphClient } from "@/lib/outlook-utils";
 import { prisma } from "@/lib/prisma";
+import { computeNextOccurrence } from "@/lib/recurring-task";
+import { schedulePushTaskBlock } from "@/lib/task-block-push";
 
 import { TaskStatus } from "@/types/task";
 
 import { FieldMapper } from "./field-mapper";
 import { CalDAVFieldMapper } from "./providers/caldav-field-mapper";
 import { CalDAVTaskProvider } from "./providers/caldav-provider";
-import { OutlookFieldMapper } from "./providers/outlook-field-mapper";
 import { GoogleFieldMapper } from "./providers/google-field-mapper";
+import { OutlookFieldMapper } from "./providers/outlook-field-mapper";
 // Import provider implementations
 import { OutlookTaskProvider } from "./providers/outlook-provider";
 import {
@@ -100,19 +102,26 @@ export class TaskSyncManager {
         return new OutlookTaskProvider(client, dbProvider.accountId);
       case "GOOGLE":
         if (!dbProvider.accountId || !dbProvider.account?.userId) {
-          throw new Error(`Missing account information for Google provider ${providerId}`);
+          throw new Error(
+            `Missing account information for Google provider ${providerId}`
+          );
         }
         // Lazy import to avoid increasing startup cost
         const { getGoogleTasksClient, GoogleTaskProvider } = await import(
           "@/lib/task-sync/providers/google-provider"
         );
-        const googleClient = await getGoogleTasksClient(dbProvider.accountId, dbProvider.account.userId);
-        return new GoogleTaskProvider(googleClient, dbProvider.accountId, dbProvider.account.userId);
+        const googleClient = await getGoogleTasksClient(
+          dbProvider.accountId,
+          dbProvider.account.userId
+        );
+        return new GoogleTaskProvider(
+          googleClient,
+          dbProvider.accountId,
+          dbProvider.account.userId
+        );
       case "CALDAV":
         if (!dbProvider.account) {
-          throw new Error(
-            `Missing account for CalDAV provider ${providerId}`
-          );
+          throw new Error(`Missing account for CalDAV provider ${providerId}`);
         }
         // Defense-in-depth: only use the account's CalDAV credentials if the
         // account is actually owned by the provider's user and is a CalDAV
@@ -628,6 +637,16 @@ export class TaskSyncManager {
               fieldMapper
             );
             result.updated++;
+          } else if (
+            externalTask.status === "completed" &&
+            mapping.lastSyncedAt &&
+            externalTask.completedDate &&
+            externalTask.completedDate < mapping.lastSyncedAt
+          ) {
+            // Completed before the last sync and never known locally (the
+            // history of completed items returned with showHidden): neither
+            // imported nor linked to a same-named local task
+            result.skipped++;
           } else {
             // External task not found locally - check if it matches an unlinked local task
             const matchedTask = this.findMatchingLocalTask(
@@ -1044,6 +1063,92 @@ export class TaskSyncManager {
   /**
    * Resolve conflicts between local and external task versions
    */
+  /**
+   * Completes the current occurrence of a recurring task that was ticked off
+   * in the external app: records a completed copy, moves the task to its
+   * next occurrence (clearing its schedule so Auto Schedule places it
+   * again), and reopens the external task with the new due date.
+   * Returns false if the series has no next occurrence.
+   */
+  private async rollRecurringTaskForward(
+    localTask: TaskWithSync,
+    provider: TaskProviderInterface,
+    mapping: TaskListMapping & { provider: DbTaskProvider }
+  ): Promise<boolean> {
+    const next = computeNextOccurrence({
+      recurrenceRule: localTask.recurrenceRule ?? null,
+      dueDate: localTask.dueDate ? newDate(localTask.dueDate) : null,
+      startDate: localTask.startDate ? newDate(localTask.startDate) : null,
+    });
+    if (!next) return false;
+    const userId = mapping.provider.userId;
+
+    await prisma.$transaction([
+      prisma.task.create({
+        data: {
+          title: localTask.title,
+          description: localTask.description,
+          status: TaskStatus.COMPLETED,
+          dueDate: next.completedDueDate,
+          startDate: localTask.startDate,
+          duration: localTask.duration,
+          priority: localTask.priority,
+          energyLevel: localTask.energyLevel,
+          preferredTime: localTask.preferredTime,
+          projectId: localTask.projectId,
+          isRecurring: false,
+          completedAt: newDate(),
+          userId,
+        },
+      }),
+      prisma.task.update({
+        where: { id: localTask.id },
+        data: {
+          status: TaskStatus.TODO,
+          dueDate: next.dueDate,
+          ...(next.startDate && { startDate: next.startDate }),
+          lastCompletedDate: newDate(),
+          scheduledStart: null,
+          scheduledEnd: null,
+          scheduleScore: null,
+          lastSyncedAt: newDate(),
+        },
+      }),
+    ]);
+
+    // Reopen the external task for the next occurrence
+    const reopened = await provider.updateTask(
+      mapping.externalListId,
+      localTask.externalTaskId as string,
+      { status: TaskStatus.TODO, dueDate: next.dueDate }
+    );
+    await prisma.task.update({
+      where: { id: localTask.id },
+      data: {
+        externalUpdatedAt: reopened.lastModified
+          ? newDate(reopened.lastModified)
+          : reopened.lastModifiedDateTime
+            ? newDate(reopened.lastModifiedDateTime)
+            : newDate(),
+        syncStatus: "SYNCED",
+      },
+    });
+
+    // Remove the pushed calendar block for the completed occurrence
+    if (userId) schedulePushTaskBlock(userId, localTask.id);
+
+    logger.info(
+      "Recurring task completed externally; rolled to next occurrence",
+      {
+        taskId: localTask.id,
+        completedDue: next.completedDueDate.toISOString(),
+        nextDue: next.dueDate.toISOString(),
+      },
+      LOG_SOURCE
+    );
+    return true;
+  }
+
   private async resolveTaskConflict(
     localTask: TaskWithSync,
     externalTask: ExternalTask,
@@ -1066,10 +1171,29 @@ export class TaskSyncManager {
     );
 
     // Compare timestamps to decide which version to use
-    if (
+    const externalIsNewer =
       !localTask.externalUpdatedAt ||
-      (externalUpdatedAt && externalUpdatedAt > localTask.externalUpdatedAt)
+      (externalUpdatedAt && externalUpdatedAt > localTask.externalUpdatedAt);
+
+    // A recurring task ticked off in the external app: complete just this
+    // occurrence and roll the series forward (as completing it here does),
+    // instead of marking the whole series completed
+    if (
+      externalIsNewer &&
+      localTask.isRecurring &&
+      localTask.recurrenceRule &&
+      localTask.status !== TaskStatus.COMPLETED &&
+      mappedExternalTask.status === TaskStatus.COMPLETED
     ) {
+      const rolled = await this.rollRecurringTaskForward(
+        localTask,
+        provider,
+        mapping
+      );
+      if (rolled) return;
+    }
+
+    if (externalIsNewer) {
       // External is newer - update local with external data
       // But preserve any local fields that weren't changed in external
 
