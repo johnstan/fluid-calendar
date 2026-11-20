@@ -209,12 +209,11 @@ export function EventModal({
     calendar.defaultCalendarId,
   ]);
 
-  // Show recurrence dialog when editing a recurring event
+  // Editing a recurring event changes just this occurrence by default; the
+  // "Apply to" choice in the form switches to the whole series
   useEffect(() => {
     if (isOpen && event?.isRecurring && !editMode && !showRecurrenceDialog) {
-      //todo: we need to handle editing series vs single, for now forcing to always edit series
-      // setShowRecurrenceDialog(true);
-      setEditMode("series");
+      setEditMode("single");
     }
   }, [isOpen, event?.isRecurring, editMode, showRecurrenceDialog]);
 
@@ -556,6 +555,38 @@ export function EventModal({
             </div>
 
             {renderRecurrenceOptions()}
+
+            {event?.id && event.isRecurring && (
+              <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+                <span className="text-muted-foreground">Apply to</span>
+                <div className="inline-flex overflow-hidden rounded-md border border-input">
+                  {(
+                    [
+                      ["single", "This event"],
+                      ["series", "All events"],
+                    ] as const
+                  ).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      aria-pressed={editMode === mode}
+                      onClick={() => setEditMode(mode)}
+                      className={cn(
+                        "px-2.5 py-1 text-xs font-medium transition-colors",
+                        editMode === mode
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-background text-muted-foreground hover:bg-muted"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  (also used for Delete)
+                </span>
+              </div>
+            )}
 
             <div className="flex items-center justify-between pt-4">
               {event?.id ? (
