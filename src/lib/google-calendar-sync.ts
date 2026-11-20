@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { calendar_v3 } from "googleapis";
 
+import { reuseEventIds } from "@/lib/calendar-event-ids";
 import { createAllDayDate, newDate, newDateFromYMD } from "@/lib/date-utils";
 import { getGoogleCalendarClient } from "@/lib/google-calendar";
 import { prisma } from "@/lib/prisma";
@@ -162,11 +163,20 @@ export async function syncGoogleFeed(
   }
 
   // Replace the feed's events atomically, so the calendar and the
-  // auto-scheduler never see the feed half-empty mid-sync
+  // auto-scheduler never see the feed half-empty mid-sync. Events keep their
+  // database id across syncs (matched on Google's event id), so pages and
+  // per-event settings referring to an id stay valid.
   await prisma.$transaction(
     async (tx) => {
+      const existing = await tx.calendarEvent.findMany({
+        where: { feedId },
+        select: { id: true, externalEventId: true },
+      });
+      const stableRows = reuseEventIds(rows, existing);
       await tx.calendarEvent.deleteMany({ where: { feedId } });
-      if (rows.length) await tx.calendarEvent.createMany({ data: rows });
+      if (stableRows.length) {
+        await tx.calendarEvent.createMany({ data: stableRows });
+      }
       await tx.calendarFeed.update({
         where: { id: feedId, userId },
         data: { lastSync: newDate(), error: null },

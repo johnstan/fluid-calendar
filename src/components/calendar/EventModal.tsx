@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -219,6 +220,10 @@ export function EventModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAllDay && endDate.getTime() <= startDate.getTime()) {
+      toast.error("The end time must be after the start time");
+      return;
+    }
     setIsSubmitting(true);
     try {
       const feed = feeds.find((f) => f.id === selectedFeedId);
@@ -261,7 +266,9 @@ export function EventModal({
       onClose();
     } catch (error) {
       console.error("Failed to save event:", error);
-      alert(error instanceof Error ? error.message : "Failed to save event");
+      toast.error("Couldn't save the event", {
+        description: error instanceof Error ? error.message : undefined,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -422,7 +429,16 @@ export function EventModal({
                       ? formatToLocalISOString(startDate).split("T")[0]
                       : formatToLocalISOString(startDate)
                   }
-                  onChange={(e) => setStartDate(newDate(e.target.value))}
+                  onChange={(e) => {
+                    // Keep the event's length: move the end with the start
+                    const next = newDate(e.target.value);
+                    if (isNaN(next.getTime())) return;
+                    const length = endDate.getTime() - startDate.getTime();
+                    setStartDate(next);
+                    setEndDate(
+                      newDate(next.getTime() + (length > 0 ? length : 3600000))
+                    );
+                  }}
                   className={cn(
                     "cursor-pointer px-3 py-2",
                     "[&::-webkit-calendar-picker-indicator]:ml-auto",

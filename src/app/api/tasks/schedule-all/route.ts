@@ -13,6 +13,39 @@ const LOG_SOURCE = "task-schedule-route";
 // second run that would race it (duplicate calendar blocks, wasted work).
 const runsInProgress = new Map<string, Promise<unknown>>();
 
+// Pushing task blocks to Google Calendar is the slow part (one API call per
+// moved task), so it runs after the response, chained per user so pushes
+// never overlap. The app shows the new schedule straight away.
+const pushChains = new Map<string, Promise<void>>();
+
+function queueBlockPush(userId: string) {
+  const previous = pushChains.get(userId) ?? Promise.resolve();
+  const next = previous
+    .then(async () => {
+      const started = Date.now();
+      await repushDirtyBlocks(userId);
+      logger.info(
+        "Pushed task blocks to calendar",
+        { userId, ms: Date.now() - started },
+        LOG_SOURCE
+      );
+    })
+    .catch((error) => {
+      logger.error(
+        "Background task block push failed",
+        {
+          userId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        LOG_SOURCE
+      );
+    })
+    .finally(() => {
+      if (pushChains.get(userId) === next) pushChains.delete(userId);
+    });
+  pushChains.set(userId, next);
+}
+
 async function runOnce(userId: string) {
   const running = runsInProgress.get(userId);
   if (running) {
@@ -24,9 +57,15 @@ async function runOnce(userId: string) {
     return running;
   }
   const run = (async () => {
+    const started = Date.now();
     const tasksWithRelations = await scheduleAllTasksForUser(userId);
-    // Repush dirty blocks and newly scheduled tasks to calendar
-    await repushDirtyBlocks(userId);
+    logger.info(
+      "Auto Schedule finished",
+      { userId, ms: Date.now() - started },
+      LOG_SOURCE
+    );
+    // Repush dirty blocks and newly scheduled tasks to calendar (background)
+    queueBlockPush(userId);
     return tasksWithRelations;
   })();
   runsInProgress.set(userId, run);

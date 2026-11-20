@@ -60,7 +60,12 @@ export function useCalendarDragHandlers() {
       } catch (error) {
         console.error("Failed to apply calendar drag change:", error);
         info.revert();
-        toast.error(isResize ? "Failed to resize item" : "Failed to move item");
+        toast.error(
+          isResize ? "Failed to resize item" : "Failed to move item",
+          {
+            description: error instanceof Error ? error.message : undefined,
+          }
+        );
       }
     },
     [feeds, updateEvent, updateTask]

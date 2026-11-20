@@ -61,8 +61,7 @@ export async function createGoogleEvent(
   }
 ) {
   const calendar = await getGoogleCalendarClient(accountId, userId);
-  const timeZone =
-    event.timeZone || useSettingsStore.getState().user.timeZone;
+  const timeZone = event.timeZone || useSettingsStore.getState().user.timeZone;
 
   // Format recurrence rule for Google Calendar
   const recurrence =
@@ -118,8 +117,7 @@ export async function updateGoogleEvent(
   }
 ) {
   const calendar = await getGoogleCalendarClient(accountId, userId);
-  const timeZone =
-    event.timeZone || useSettingsStore.getState().user.timeZone;
+  const timeZone = event.timeZone || useSettingsStore.getState().user.timeZone;
 
   try {
     // Get the event to check if it's part of a series
@@ -130,6 +128,25 @@ export async function updateGoogleEvent(
 
     // For series updates, use the master event ID
     if (event.mode === "series" && existingEvent.data.recurringEventId) {
+      // The new times are this occurrence's; apply them to the series as a
+      // shift (same move + same length) from the series' own first start,
+      // rather than moving the whole series to start on this occurrence
+      const occurrenceStart = existingEvent.data.start?.dateTime;
+      if (event.start && event.end && !event.allDay && occurrenceStart) {
+        const master = await calendar.events.get({
+          calendarId,
+          eventId: existingEvent.data.recurringEventId,
+        });
+        const masterStart = master.data.start?.dateTime;
+        if (masterStart) {
+          const shift =
+            event.start.getTime() - new Date(occurrenceStart).getTime();
+          const length = event.end.getTime() - event.start.getTime();
+          const start = new Date(new Date(masterStart).getTime() + shift);
+          event = { ...event, start, end: new Date(start.getTime() + length) };
+        }
+      }
+
       // Format recurrence rule for Google Calendar
       const recurrence = event.recurrenceRule
         ? [
@@ -170,50 +187,9 @@ export async function updateGoogleEvent(
       return response.data;
     }
 
-    // For single instance updates
-    if (event.mode === "single") {
-      const instances = await calendar.events.instances({
-        calendarId,
-        eventId: existingEvent.data.recurringEventId || eventId,
-        timeMin: event.start?.toISOString() || newDate().toISOString(),
-        maxResults: 1,
-      });
-
-      if (instances.data.items?.[0]) {
-        // Update the specific instance
-        const response = await calendar.events.patch({
-          calendarId,
-          eventId: instances.data.items[0].id!,
-          requestBody: {
-            summary: event.title,
-            description: event.description,
-            location: event.location,
-            start: event.start
-              ? {
-                  dateTime: event.allDay
-                    ? undefined
-                    : event.start.toISOString(),
-                  date: event.allDay
-                    ? event.start.toISOString().split("T")[0]
-                    : undefined,
-                  timeZone,
-                }
-              : undefined,
-            end: event.end
-              ? {
-                  dateTime: event.allDay ? undefined : event.end.toISOString(),
-                  date: event.allDay
-                    ? event.end.toISOString().split("T")[0]
-                    : undefined,
-                  timeZone,
-                }
-              : undefined,
-          },
-        });
-        return response.data;
-      }
-    }
-
+    // Single occurrence (or a non-recurring event): synced rows carry the
+    // occurrence's own id, so patch it directly. (Looking the instance up by
+    // the NEW start time used to pick the wrong occurrence when moving one.)
     // If not part of a series or no instance found, update the event directly
     const response = await calendar.events.patch({
       calendarId,
@@ -240,13 +216,15 @@ export async function updateGoogleEvent(
               timeZone,
             }
           : undefined,
-        recurrence: event.recurrenceRule
-          ? [
-              event.recurrenceRule.startsWith("RRULE:")
-                ? event.recurrenceRule
-                : `RRULE:${event.recurrenceRule}`,
-            ]
-          : undefined,
+        // An occurrence of a series can't carry its own recurrence rule
+        recurrence:
+          event.recurrenceRule && !existingEvent.data.recurringEventId
+            ? [
+                event.recurrenceRule.startsWith("RRULE:")
+                  ? event.recurrenceRule
+                  : `RRULE:${event.recurrenceRule}`,
+              ]
+            : undefined,
       },
     });
     return response.data;

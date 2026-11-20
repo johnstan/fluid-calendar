@@ -509,7 +509,10 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
         });
 
         if (!response.ok) {
-          throw new Error("Failed to update event in Google Calendar");
+          const body = await response.json().catch(() => null);
+          throw new Error(
+            body?.error || "Failed to update event in Google Calendar"
+          );
         }
 
         // Reload from database to get the latest state

@@ -113,6 +113,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Moving or editing a calendar event failed if the page had been open for a while: each Google sync gave every event a new database id. Events now keep their id across syncs
+- Editing one occurrence of a recurring Google event could change a different occurrence (the instance was looked up by the new start time); edits now apply to exactly that occurrence and update it in place instead of rewriting the series
+- Saving a time change for all occurrences moved the whole series to start on that occurrence's date; it now shifts the series' times by the same amount
+- Event editor: changing the start time moves the end time too (keeping the length); saving with the end before the start is blocked with a message, and save errors show Google's reason
+- Auto Schedule responds as soon as tasks are placed; pushing task blocks to Google Calendar happens in the background, one push at a time per user
 - Tasks due today (date-only due dates, e.g. from Google Tasks or recurring roll-over, stored as 00:00 UTC) no longer show as overdue from 01:00 on their due day; they become overdue after the end of that day in local time (calendar cards, quick view, Focus Mode queue)
 - Editing a task that belongs to a project (e.g. changing its priority) failed silently since the schedule picker was added: the update mixed a project relation with a plain `scheduleId`, which Prisma rejects. The project is now set as a plain field, and the task editor shows an error if a save fails instead of just staying open
 - Creating, editing or completing a task (and changing calendar events) no longer waits for a full Auto Schedule run: the change saves immediately and tasks are rescheduled in the background (debounced, with a follow-up run if you change something mid-run; the Auto Schedule button shows progress)

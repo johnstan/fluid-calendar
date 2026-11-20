@@ -15,6 +15,7 @@ import getGoogleEvent, {
   deleteGoogleEvent,
   updateGoogleEvent,
 } from "@/lib/google-calendar";
+import { syncGoogleFeed } from "@/lib/google-calendar-sync";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
@@ -252,25 +253,41 @@ export async function PUT(request: NextRequest) {
       throw new Error("Failed to get event ID from Google Calendar");
     }
 
-    // Delete existing event and any related instances from our database
-    deleteCalendarEvent(validatedEvent.id, mode);
+    // A whole series changed: re-import the calendar (event ids are kept)
+    if (mode === "series") {
+      await syncGoogleFeed(validatedEvent.feed.id, userId);
+      const refreshed = await prisma.calendarEvent.findMany({
+        where: {
+          feedId: validatedEvent.feed.id,
+          recurringEventId:
+            googleEvent.recurringEventId || googleEvent.id || undefined,
+        },
+      });
+      return NextResponse.json(refreshed);
+    }
 
-    // Get the updated event and its instances
-    const { event: updatedEvent, instances } = await getGoogleEvent(
-      validatedEvent.feed.accountId,
-      userId,
-      validatedEvent.feed.url,
-      googleEvent.id
-    );
+    // One event / occurrence: update its row in place so its id (which the
+    // calendar page and per-event settings use) stays the same
+    const isAllDay = googleEvent.start ? !googleEvent.start.dateTime : false;
+    const updated = await prisma.calendarEvent.update({
+      where: { id: validatedEvent.id },
+      data: {
+        externalEventId: googleEvent.id,
+        title: googleEvent.summary || "Untitled Event",
+        description: googleEvent.description || "",
+        location: googleEvent.location ?? null,
+        start: isAllDay
+          ? createAllDayDate(googleEvent.start?.date || "")
+          : newDate(googleEvent.start?.dateTime || ""),
+        end: isAllDay
+          ? createAllDayDate(googleEvent.end?.date || "")
+          : newDate(googleEvent.end?.dateTime || ""),
+        allDay: isAllDay,
+        isFree: googleEvent.transparency === "transparent",
+      },
+    });
 
-    // Create new records in our database
-    const records = await writeEventToDatabase(
-      validatedEvent.feed.id,
-      updatedEvent,
-      instances
-    );
-
-    return NextResponse.json(records);
+    return NextResponse.json([updated]);
   } catch (error) {
     logger.error(
       "Failed to update Google calendar event:",
@@ -283,6 +300,14 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json(
         { error: "Authentication failed. Please try signing in again." },
         { status: 401 }
+      );
+    }
+    // Pass Google's reason on (e.g. no permission to change an invite)
+    if (error instanceof GaxiosError) {
+      const status = Number(error.code);
+      return NextResponse.json(
+        { error: error.message || "Google Calendar rejected the change" },
+        { status: status >= 400 && status < 600 ? status : 500 }
       );
     }
     return NextResponse.json(
