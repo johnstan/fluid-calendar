@@ -14,6 +14,63 @@ const LOG_SOURCE = "task-block-push";
 // cleaning up orphans, so the user's own events in that calendar are kept.
 export const TASK_BLOCK_DESCRIPTION = "Scheduled by FluidCalendar";
 
+const PRIORITY_LABEL: Record<string, string> = {
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+};
+
+/**
+ * Description for a task's calendar block: the task's own description,
+ * then a details line (priority, due date, duration, project), a link back
+ * to FluidCalendar when the app URL is configured, and finally the
+ * TASK_BLOCK_DESCRIPTION marker. The marker must stay the LAST line: orphan
+ * cleanup recognises our events by it (descriptions ending with it).
+ */
+export function buildTaskBlockDescription(
+  task: {
+    description?: string | null;
+    priority?: string | null;
+    dueDate?: Date | null;
+    duration?: number | null;
+    project?: { name: string } | null;
+  },
+  timeZone?: string | null
+): string {
+  const details: string[] = [];
+  if (task.priority && PRIORITY_LABEL[task.priority]) {
+    details.push(`Priority: ${PRIORITY_LABEL[task.priority]}`);
+  }
+  if (task.dueDate) {
+    // Date-only due dates are stored at 00:00 UTC: show that calendar date
+    const due = new Date(task.dueDate);
+    details.push(
+      `Due: ${due.toLocaleDateString("en-GB", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        timeZone: due.getUTCHours() === 0 ? "UTC" : timeZone || undefined,
+      })}`
+    );
+  }
+  if (task.duration) details.push(`${task.duration} min`);
+  if (task.project?.name) details.push(`Project: ${task.project.name}`);
+
+  const appUrl = (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXTAUTH_URL ||
+    ""
+  ).replace(/\/$/, "");
+
+  const parts = [
+    task.description?.trim(),
+    details.length ? details.join(" · ") : null,
+    appUrl ? `Open in FluidCalendar: ${appUrl}/tasks` : null,
+    TASK_BLOCK_DESCRIPTION,
+  ].filter(Boolean);
+  return parts.join("\n\n");
+}
+
 // Per-task serialisation. Without it, two pushes for a task that has no event
 // yet (e.g. overlapping Auto Schedule runs) both create an event and only the
 // last ID is kept, leaving the other as a permanent orphan in the calendar.
@@ -175,6 +232,7 @@ async function pushTaskBlockUnlocked(userId: string, taskId: string) {
     const [task, settings, userSettings] = await Promise.all([
       prisma.task.findUnique({
         where: { id: taskId, userId },
+        include: { project: { select: { name: true } } },
       }),
       prisma.autoScheduleSettings.findUnique({
         where: { userId },
@@ -189,6 +247,10 @@ async function pushTaskBlockUnlocked(userId: string, taskId: string) {
       logger.warn(`Task not found for push: ${taskId}`, { userId }, LOG_SOURCE);
       return;
     }
+    const blockTask = {
+      ...task,
+      blockDescription: buildTaskBlockDescription(task, timeZone),
+    };
 
     if (!settings) {
       logger.warn(
@@ -285,7 +347,7 @@ async function pushTaskBlockUnlocked(userId: string, taskId: string) {
       await createNewEvent(
         userId,
         taskId,
-        task,
+        blockTask,
         targetAccountId!,
         targetCalendarId!,
         targetFeed!.id,
@@ -305,7 +367,7 @@ async function pushTaskBlockUnlocked(userId: string, taskId: string) {
         await createNewEvent(
           userId,
           taskId,
-          task,
+          blockTask,
           targetAccountId!,
           targetCalendarId!,
           targetFeed!.id,
@@ -316,7 +378,7 @@ async function pushTaskBlockUnlocked(userId: string, taskId: string) {
         await updateExistingEvent(
           userId,
           taskId,
-          task,
+          blockTask,
           targetAccountId!,
           targetCalendarId!,
           timeZone
@@ -374,6 +436,7 @@ async function createNewEvent(
   taskId: string,
   task: {
     title: string;
+    blockDescription?: string;
     scheduledStart: Date | null;
     scheduledEnd: Date | null;
   },
@@ -396,7 +459,7 @@ async function createNewEvent(
 
     const event = await createGoogleEvent(accountId, userId, calendarId, {
       title: task.title,
-      description: TASK_BLOCK_DESCRIPTION,
+      description: task.blockDescription ?? TASK_BLOCK_DESCRIPTION,
       start: task.scheduledStart!,
       end: task.scheduledEnd!,
       timeZone,
@@ -445,6 +508,7 @@ async function updateExistingEvent(
   taskId: string,
   task: {
     title: string;
+    blockDescription?: string;
     blockEventId: string | null;
     scheduledStart: Date | null;
     scheduledEnd: Date | null;
@@ -468,7 +532,7 @@ async function updateExistingEvent(
 
     await updateGoogleEvent(accountId, userId, calendarId, task.blockEventId!, {
       title: task.title,
-      description: TASK_BLOCK_DESCRIPTION,
+      description: task.blockDescription ?? TASK_BLOCK_DESCRIPTION,
       start: task.scheduledStart || undefined,
       end: task.scheduledEnd || undefined,
       mode: "single",
@@ -905,7 +969,8 @@ export async function cleanupOrphanTaskBlocks(userId: string) {
     const events = await prisma.calendarEvent.findMany({
       where: {
         feedId: feed.id,
-        description: TASK_BLOCK_DESCRIPTION,
+        // Ours end with the marker (older blocks are just the marker)
+        description: { endsWith: TASK_BLOCK_DESCRIPTION },
         externalEventId: { not: null },
       },
       select: { id: true, externalEventId: true },

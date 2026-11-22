@@ -494,7 +494,7 @@ describe("cleanupOrphanTaskBlocks", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           feedId: "feed-1",
-          description: TASK_BLOCK_DESCRIPTION,
+          description: { endsWith: TASK_BLOCK_DESCRIPTION },
         }),
       })
     );
