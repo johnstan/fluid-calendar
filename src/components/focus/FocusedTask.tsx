@@ -57,10 +57,12 @@ export function FocusedTask({ task }: FocusedTaskProps) {
   }
 
   return (
-    <Card className="flex h-full flex-col p-6">
+    <Card className="flex flex-col p-4 sm:p-6 md:h-full">
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h2 className="task-title mb-2 text-2xl font-bold">{task.title}</h2>
+          <h2 className="task-title mb-2 text-xl font-bold sm:text-2xl">
+            {task.title}
+          </h2>
 
           {/* Display tags */}
           {task.tags && task.tags.length > 0 && (

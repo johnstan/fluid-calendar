@@ -182,8 +182,8 @@ export function TaskQueue() {
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden p-3">
-      <div className="flex flex-col space-y-2 overflow-y-auto">
+    <div className="flex flex-col p-3 md:h-full md:overflow-hidden">
+      <div className="flex flex-col space-y-2 md:overflow-y-auto">
         {renderSection(
           "Top Tasks",
           queuedTasks,

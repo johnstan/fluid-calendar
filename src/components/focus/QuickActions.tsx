@@ -55,10 +55,10 @@ export function QuickActions() {
   };
 
   return (
-    <div className="flex flex-col space-y-4 p-4">
+    <div className="flex flex-col space-y-3 p-3 md:space-y-4 md:p-4">
       <h2 className="text-lg font-semibold">Quick Actions</h2>
 
-      <div className="flex flex-col space-y-2">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-1">
         {/* Complete Task */}
         <Button
           variant="outline"

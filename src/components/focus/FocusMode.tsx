@@ -49,19 +49,21 @@ export function FocusMode() {
         />
       )}
 
-      <div className="flex flex-1">
-        {/* Left sidebar with queued tasks */}
-        <aside className="h-full w-80 border-r border-border">
+      {/* Phones: one scrolling column (task, actions, queue).
+          Desktop: queue | task | actions side by side */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row md:overflow-hidden">
+        {/* Queued tasks */}
+        <aside className="order-3 border-t border-border md:order-none md:h-full md:w-80 md:flex-none md:border-r md:border-t-0">
           <TaskQueue />
         </aside>
 
-        {/* Main content area */}
-        <main className="flex-1 overflow-y-auto p-8">
+        {/* Focused task */}
+        <main className="order-1 p-3 sm:p-6 md:order-none md:flex-1 md:overflow-y-auto md:p-8">
           <FocusedTask task={currentTask} />
         </main>
 
-        {/* Right sidebar with quick actions */}
-        <aside className="h-full w-64 border-l border-border">
+        {/* Quick actions */}
+        <aside className="order-2 border-t border-border md:order-none md:h-full md:w-64 md:flex-none md:border-l md:border-t-0">
           <QuickActions />
         </aside>
       </div>
