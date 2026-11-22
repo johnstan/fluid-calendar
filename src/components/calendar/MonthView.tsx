@@ -297,6 +297,9 @@ export function MonthView({ currentDate, onDateClick }: MonthViewProps) {
         eventClick={handleEventClick}
         select={handleDateSelect}
         selectable={true}
+        // Touch: start dragging an event after a short hold (default 1 s)
+        eventLongPressDelay={350}
+        selectLongPressDelay={500}
         selectMirror={true}
         datesSet={handleDatesSet}
         eventContent={renderEventContent}

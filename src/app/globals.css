@@ -166,6 +166,16 @@
   filter: brightness(0.97);
 }
 
+/* Touch: stop the phone's own long-press menu / text selection on calendar
+   cards, which otherwise takes over the touch and cancels FullCalendar's
+   drag (you feel a buzz, then the page scrolls instead) */
+.fc .fc-event,
+.fc .fc-event * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* Events marked "free" (busy/free): tinted background, thin border and
    dark text come from eventColorProps(); keep the card flat and quiet */
 .fc .calendar-event-free.fc-timegrid-event,

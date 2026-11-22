@@ -76,6 +76,18 @@ export function Calendar({
     useTaskStore.getState().fetchTasks();
   }, [initialFeeds, initialEvents, setFeeds, setEvents]);
 
+  // Touch: a long press on an event fires "contextmenu" on Android, which
+  // ends the touch and aborts FullCalendar's drag. Suppress it on events.
+  useEffect(() => {
+    const onContextMenu = (e: MouseEvent) => {
+      if ((e.target as HTMLElement | null)?.closest?.(".fc-event")) {
+        e.preventDefault();
+      }
+    };
+    document.addEventListener("contextmenu", onContextMenu);
+    return () => document.removeEventListener("contextmenu", onContextMenu);
+  }, []);
+
   // Keep the calendar current while the page stays open: reload events and
   // tasks when you come back to it (tab switch or window focus; a Mac app
   // switch only fires "focus") and every 5 minutes while it's visible, so
