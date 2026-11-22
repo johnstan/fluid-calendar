@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Phones/touch screens: tapping an empty time in Day or Week view opens a new event for that slot (1 hour; all-day row gives an all-day event). Mouse behaviour unchanged (drag across times to create)
 - Task blocks pushed to Google Calendar now carry the task's description plus priority, due date, duration, project and a link back to FluidCalendar (kept up to date when the task changes)
 - Tasks that Auto Schedule had to place after their due date (no free slot in time) are flagged as late: amber marker and warning icon on the calendar card, a "Late" badge in the task list, and a note in the quick view
 - Task list shows how many tasks are listed ("84 tasks", or "12 of 84 tasks" when filtered); the total counts open tasks (to do and in progress) only, not completed ones

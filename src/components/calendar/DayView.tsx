@@ -6,6 +6,7 @@ import type {
   EventContentArg,
 } from "@fullcalendar/core";
 import type { DateSelectArg } from "@fullcalendar/core";
+import type { DateClickArg } from "@fullcalendar/interaction";
 import interactionPlugin from "@fullcalendar/interaction";
 import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -193,6 +194,30 @@ export function DayView({ currentDate, onDateClick }: DayViewProps) {
     }
   };
 
+  // Tapping an empty slot on a touch screen opens a new event there (1 h,
+  // or all day in the all-day row). Mouse clicks keep just moving the date;
+  // with a mouse, drag across times to create an event.
+  const handleDateClick = (arg: DateClickArg) => {
+    const e = arg.jsEvent as MouseEvent & { pointerType?: string };
+    const isTouch =
+      e.type.startsWith("touch") ||
+      e.pointerType === "touch" ||
+      (typeof window !== "undefined" &&
+        window.matchMedia?.("(pointer: coarse)").matches);
+    if (!isTouch) {
+      onDateClick?.(arg.date);
+      return;
+    }
+    const start = arg.date;
+    const end = arg.allDay
+      ? new Date(start.getTime() + 24 * 60 * 60 * 1000)
+      : new Date(start.getTime() + 60 * 60 * 1000);
+    setSelectedDate(start);
+    setSelectedEndDate(end);
+    setSelectedEvent({ allDay: arg.allDay });
+    setIsEventModalOpen(true);
+  };
+
   const handleDateSelect = (selectInfo: DateSelectArg) => {
     const { start, end, allDay } = getSelectionRange(selectInfo);
 
@@ -327,7 +352,7 @@ export function DayView({ currentDate, onDateClick }: DayViewProps) {
           omitCommas: true,
         }}
         height="100%"
-        dateClick={(arg) => onDateClick?.(arg.date)}
+        dateClick={handleDateClick}
         eventClick={handleEventClick}
         select={handleDateSelect}
         selectable={true}
