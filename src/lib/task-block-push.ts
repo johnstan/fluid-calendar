@@ -20,6 +20,43 @@ const PRIORITY_LABEL: Record<string, string> = {
   low: "Low",
 };
 
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+/** "Fri 27 Nov" (built by hand: locale output differs between Node builds) */
+function formatDueDate(dueDate: Date, timeZone?: string | null): string {
+  const due = new Date(dueDate);
+  // Date-only due dates are stored at 00:00 UTC: show that calendar date
+  const tz = due.getUTCHours() === 0 ? "UTC" : timeZone || "UTC";
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+    })
+      .formatToParts(due)
+      .map((p) => [p.type, p.value])
+  );
+  const local = new Date(
+    Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day))
+  );
+  return `${WEEKDAYS[local.getUTCDay()]} ${local.getUTCDate()} ${MONTHS[local.getUTCMonth()]}`;
+}
+
 /**
  * Description for a task's calendar block: the task's own description,
  * then a details line (priority, due date, duration, project), a link back
@@ -41,18 +78,8 @@ export function buildTaskBlockDescription(
   if (task.priority && PRIORITY_LABEL[task.priority]) {
     details.push(`Priority: ${PRIORITY_LABEL[task.priority]}`);
   }
-  if (task.dueDate) {
-    // Date-only due dates are stored at 00:00 UTC: show that calendar date
-    const due = new Date(task.dueDate);
-    details.push(
-      `Due: ${due.toLocaleDateString("en-GB", {
-        weekday: "short",
-        day: "numeric",
-        month: "short",
-        timeZone: due.getUTCHours() === 0 ? "UTC" : timeZone || undefined,
-      })}`
-    );
-  }
+  if (task.dueDate)
+    details.push(`Due: ${formatDueDate(task.dueDate, timeZone)}`);
   if (task.duration) details.push(`${task.duration} min`);
   if (task.project?.name) details.push(`Project: ${task.project.name}`);
 

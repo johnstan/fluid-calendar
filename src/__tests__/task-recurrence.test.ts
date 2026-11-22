@@ -51,9 +51,11 @@ describe("task recurrence helpers", () => {
     expect(parseTaskRecurrence(rule)?.weekdays).toEqual([0, 2, 4]);
 
     // Thu 19 Nov 2026 -> next occurrence is Fri 20 Nov
-    const next = RRule.fromString(rule).after(
-      new Date(Date.UTC(2026, 10, 19, 12))
-    );
+    // Fixed series start so the result doesn't depend on today's date
+    const next = new RRule({
+      ...RRule.parseString(rule),
+      dtstart: new Date(Date.UTC(2026, 10, 1)),
+    }).after(new Date(Date.UTC(2026, 10, 19, 12)));
     expect(next?.getUTCDay()).toBe(5);
 
     expect(
