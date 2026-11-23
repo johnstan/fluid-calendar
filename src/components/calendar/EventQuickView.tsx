@@ -170,14 +170,15 @@ export function EventQuickView({
             <div className="flex items-center gap-1">
               {isTask && taskItem && onStatusChange && (
                 <button
-                  onClick={() =>
+                  onClick={() => {
+                    const completing = taskItem.status !== TaskStatus.COMPLETED;
                     onStatusChange(
                       taskItem.id,
-                      taskItem.status === TaskStatus.COMPLETED
-                        ? TaskStatus.TODO
-                        : TaskStatus.COMPLETED
-                    )
-                  }
+                      completing ? TaskStatus.COMPLETED : TaskStatus.TODO
+                    );
+                    // Ticked off: nothing left to do here, so close the popup
+                    if (completing) onClose();
+                  }}
                   className={cn(
                     "rounded-md p-1.5",
                     taskItem.status === TaskStatus.COMPLETED
