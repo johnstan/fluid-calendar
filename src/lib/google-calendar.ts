@@ -4,6 +4,7 @@ import { useSettingsStore } from "@/store/settings";
 
 import { newDate, newDateFromYMD } from "./date-utils";
 import { createGoogleOAuthClient } from "./google";
+import { mergeGoogleRecurrence } from "./recurrence-rule";
 import { TokenManager } from "./token-manager";
 
 type GoogleEvent = calendar_v3.Schema$Event;
@@ -219,11 +220,10 @@ export async function updateGoogleEvent(
         // An occurrence of a series can't carry its own recurrence rule
         recurrence:
           event.recurrenceRule && !existingEvent.data.recurringEventId
-            ? [
-                event.recurrenceRule.startsWith("RRULE:")
-                  ? event.recurrenceRule
-                  : `RRULE:${event.recurrenceRule}`,
-              ]
+            ? mergeGoogleRecurrence(
+                event.recurrenceRule,
+                existingEvent.data.recurrence
+              )
             : undefined,
       },
     });

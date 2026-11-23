@@ -26,6 +26,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 
 import { formatToLocalISOString, newDate } from "@/lib/date-utils";
+import {
+  ParsedRecurrenceRule,
+  buildRecurrenceRule,
+  describeRecurrenceEnd,
+  parseRecurrenceRule,
+} from "@/lib/recurrence-rule";
 import { cn } from "@/lib/utils";
 
 import { useCalendarStore } from "@/store/calendar";
@@ -53,8 +59,6 @@ const FREQUENCIES = {
   YEARLY: "YEARLY",
 } as const;
 
-type Frequency = (typeof FREQUENCIES)[keyof typeof FREQUENCIES];
-
 // RRule weekday codes
 const WEEKDAYS = {
   SU: "Sunday",
@@ -65,66 +69,6 @@ const WEEKDAYS = {
   FR: "Friday",
   SA: "Saturday",
 } as const;
-
-// Helper function to parse recurrence rule
-function parseRecurrenceRule(rule?: string) {
-  if (!rule) return { freq: FREQUENCIES.NONE, interval: 1, byDay: [] };
-
-  // Remove RRULE: prefix and any array wrapper
-  rule = rule.replace(/^\[?"?RRULE:/i, "").replace(/"?\]?$/, "");
-
-  const parts = rule.split(";");
-  const result = {
-    freq: FREQUENCIES.NONE as Frequency,
-    interval: 1,
-    byDay: [] as string[],
-  };
-
-  parts.forEach((part) => {
-    const [key, value] = part.split("=");
-    switch (key) {
-      case "FREQ":
-        result.freq = value as Frequency;
-        break;
-      case "INTERVAL":
-        result.interval = parseInt(value, 10);
-        break;
-      case "BYDAY":
-        result.byDay = value.split(",");
-        break;
-    }
-  });
-
-  return result;
-}
-
-// Helper function to build recurrence rule
-function buildRecurrenceRule(freq: string, interval: number, byDay: string[]) {
-  if (freq === FREQUENCIES.NONE) return "";
-
-  const parts = [];
-
-  // Add frequency
-  if (Object.values(FREQUENCIES).includes(freq as Frequency)) {
-    parts.push(`FREQ=${freq}`);
-  }
-
-  // Add interval if greater than 1
-  if (interval > 1) {
-    parts.push(`INTERVAL=${interval}`);
-  }
-
-  // Add BYDAY for weekly recurrence
-  if (freq === FREQUENCIES.WEEKLY && byDay.length > 0) {
-    // byDay should already be in RRule format (MO, TU, etc.)
-    console.log("Building RRule with weekdays:", byDay);
-    parts.push(`BYDAY=${byDay.join(",")}`);
-  }
-
-  const rule = parts.join(";");
-  console.log("Built RRule:", rule);
-  return rule;
-}
 
 export function EventModal({
   isOpen,
@@ -163,6 +107,10 @@ export function EventModal({
   const [recurrenceFreq, setRecurrenceFreq] = useState("");
   const [recurrenceInterval, setRecurrenceInterval] = useState(1);
   const [recurrenceByDay, setRecurrenceByDay] = useState<string[]>([]);
+  // The rule as it was when the form opened: keeps its end date etc.
+  const [originalRule, setOriginalRule] = useState<
+    Pick<ParsedRecurrenceRule, "freq" | "extra">
+  >({ freq: "NONE", extra: [] });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Reset form when modal opens
@@ -188,10 +136,11 @@ export function EventModal({
       setSelectedFeedId(event?.feedId || calendar.defaultCalendarId || "");
       setIsAllDay(event?.allDay || false);
       setIsRecurring(event?.isRecurring || false);
-      const { freq, interval, byDay } = parseRecurrenceRule(
+      const { freq, interval, byDay, extra } = parseRecurrenceRule(
         event?.recurrenceRule
       );
-      setRecurrenceFreq(freq || "");
+      setOriginalRule({ freq, extra });
+      setRecurrenceFreq(freq === FREQUENCIES.NONE ? "" : freq);
       setRecurrenceInterval(interval);
       setRecurrenceByDay(byDay);
       setEditMode(undefined);
@@ -244,7 +193,8 @@ export function EventModal({
           ? buildRecurrenceRule(
               recurrenceFreq,
               recurrenceInterval,
-              recurrenceByDay
+              recurrenceByDay,
+              originalRule
             )
           : undefined,
         isMaster: false,
@@ -338,6 +288,12 @@ export function EventModal({
                 </span>
               </div>
             </div>
+
+            {describeRecurrenceEnd(originalRule.extra) && (
+              <p className="text-sm text-muted-foreground">
+                {describeRecurrenceEnd(originalRule.extra)}
+              </p>
+            )}
 
             {recurrenceFreq === FREQUENCIES.WEEKLY && (
               <div className="space-y-2">
@@ -680,5 +636,6 @@ export function EventModal({
     setRecurrenceFreq("");
     setRecurrenceInterval(1);
     setRecurrenceByDay([]);
+    setOriginalRule({ freq: "NONE", extra: [] });
   }
 }
