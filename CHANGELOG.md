@@ -120,6 +120,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Recurring tasks ticked off in Google Tasks moved to their next day but stayed unscheduled (shown in the all-day row) until Auto Schedule was run by hand; the background task sync now runs Auto Schedule after rolling tasks forward
 - Focus page on phones: instead of three squashed columns, it stacks the focused task (full width), quick actions (two-column grid) and the task queue in one scrolling page; desktop layout unchanged
 - Dragging events and tasks on the calendar on a phone: a long press now picks the item up (after ~0.35 s) instead of triggering the browser's long-press menu/text selection, which cancelled the drag and scrolled the view
 - A calendar left open (e.g. on a Mac, switching between apps) didn't show changes until a page refresh: it now reloads on window focus as well as tab switches, every 5 minutes while visible, and all calendar views redraw when events change

@@ -50,6 +50,8 @@ export interface SyncResult {
   updated: number;
   deleted: number;
   skipped: number;
+  /** Recurring tasks completed externally and moved to their next occurrence */
+  rolledForward?: number;
   direction: "bidirectional" | "incoming";
   errors: { taskId: string; error: string }[];
 }

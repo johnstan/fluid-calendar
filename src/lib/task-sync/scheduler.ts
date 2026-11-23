@@ -1,3 +1,4 @@
+import { runAutoScheduleOnce } from "@/lib/auto-schedule-runner";
 import { syncGoogleFeed } from "@/lib/google-calendar-sync";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
@@ -18,7 +19,8 @@ const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 // ---------- Google Tasks / task lists ----------
 
-async function runTaskSync(): Promise<void> {
+// Exported for tests
+export async function runTaskSync(): Promise<void> {
   if (g.__taskSyncRunning) return; // previous run still busy
   g.__taskSyncRunning = true;
   const started = Date.now();
@@ -37,17 +39,37 @@ async function runTaskSync(): Promise<void> {
     let deleted = 0;
     let failed = 0;
 
+    const rescheduleUsers = new Set<string>();
+
     for (const mapping of mappings) {
       try {
         const r = await manager.syncTaskList(mapping);
         imported += r.imported;
         updated += r.updated;
         deleted += r.deleted;
+        if (r.rolledForward && mapping.provider.userId) {
+          rescheduleUsers.add(mapping.provider.userId);
+        }
       } catch (error) {
         failed++;
         logger.error(
           `Scheduled task sync failed for mapping ${mapping.id}`,
           { error: errMsg(error) },
+          LOG_SOURCE
+        );
+      }
+    }
+
+    // Recurring tasks ticked off in the external app moved to their next
+    // occurrence without a time slot: place them now instead of leaving
+    // them unscheduled until someone runs Auto Schedule
+    for (const userId of rescheduleUsers) {
+      try {
+        await runAutoScheduleOnce(userId);
+      } catch (error) {
+        logger.error(
+          "Auto Schedule after task sync failed",
+          { userId, error: errMsg(error) },
           LOG_SOURCE
         );
       }

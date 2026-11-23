@@ -48,6 +48,9 @@ export type ConflictResolution =
   | { strategy: "MERGE"; fields: Record<string, "LOCAL" | "REMOTE"> };
 
 export class TaskSyncManager {
+  /** Count for the current syncTaskList run (see SyncResult.rolledForward) */
+  private rolledForward = 0;
+
   /**
    * Get an appropriate field mapper for a provider type
    *
@@ -174,6 +177,7 @@ export class TaskSyncManager {
     const fieldMapper = this.getFieldMapper(mapping.provider.type);
 
     // Initialize sync result
+    this.rolledForward = 0;
     const result: SyncResult = {
       mappingId: mapping.id,
       providerId: mapping.providerId,
@@ -229,6 +233,7 @@ export class TaskSyncManager {
 
       result.success = true;
 
+      result.rolledForward = this.rolledForward;
       return result;
     } catch (error) {
       const errorMessage =
@@ -1138,6 +1143,7 @@ export class TaskSyncManager {
     // Remove the pushed calendar block for the completed occurrence
     if (userId) schedulePushTaskBlock(userId, localTask.id);
 
+    this.rolledForward++;
     logger.info(
       "Recurring task completed externally; rolled to next occurrence",
       {
