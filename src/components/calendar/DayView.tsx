@@ -294,8 +294,12 @@ export function DayView({ currentDate, onDateClick }: DayViewProps) {
       const updatedTask = useTaskStore
         .getState()
         .tasks.find((t) => t.id === taskId);
+      // Only refresh a popup that's still open on this task: ticking a task
+      // off closes it, and re-setting it here would reopen it unanchored
       if (updatedTask) {
-        setQuickViewItem(updatedTask);
+        setQuickViewItem((current) =>
+          current?.id === taskId ? updatedTask : current
+        );
       }
     }
   };
