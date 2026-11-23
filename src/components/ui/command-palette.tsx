@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { useRouter } from "next/navigation";
+
 import * as Dialog from "@radix-ui/react-dialog";
 import { Command } from "cmdk";
 import { HiOutlineSearch, HiX } from "react-icons/hi";
@@ -12,10 +14,39 @@ import {
   HiOutlineCollection,
   HiOutlineLightningBolt,
 } from "react-icons/hi";
+import { HiOutlineCheckCircle } from "react-icons/hi";
 
 import { cn, formatShortcut } from "@/lib/utils";
 
 import { useCommands } from "@/hooks/useCommands";
+
+import { useCalendarStore, useViewStore } from "@/store/calendar";
+import { useTaskStore } from "@/store/task";
+import { useTaskModalStore } from "@/store/taskModal";
+
+import { TaskStatus } from "@/types/task";
+
+const MAX_RESULTS = 8;
+
+const fmtDay = (d: Date | string) =>
+  new Date(d).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+const fmtTime = (d: Date | string) =>
+  new Date(d).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+// Date-only due dates are stored at 00:00 UTC: show that calendar date
+const fmtDue = (d: Date | string) =>
+  new Date(d).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: new Date(d).getUTCHours() === 0 ? "UTC" : undefined,
+  });
 
 interface CommandPaletteProps {
   open: boolean;
@@ -26,6 +57,88 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [search, setSearch] = useState("");
   const [showAllCommands, setShowAllCommands] = useState(false);
   const { searchCommands, executeCommand, getAllCommands } = useCommands();
+  const router = useRouter();
+  const tasks = useTaskStore((s) => s.tasks);
+  const events = useCalendarStore((s) => s.events);
+  const feeds = useCalendarStore((s) => s.feeds);
+
+  // Make sure there is something to search, whichever page we're on
+  useEffect(() => {
+    if (!open) return;
+    if (useTaskStore.getState().tasks.length === 0) {
+      void useTaskStore.getState().fetchTasks();
+    }
+    if (useCalendarStore.getState().events.length === 0) {
+      void useCalendarStore.getState().loadFromDatabase();
+    }
+  }, [open]);
+
+  const query = search.trim().toLowerCase();
+
+  // Tasks matching title or description: open ones first, by due date
+  const taskResults = useMemo(() => {
+    if (query.length < 2) return [];
+    return tasks
+      .filter(
+        (t) =>
+          t.title.toLowerCase().includes(query) ||
+          t.description?.toLowerCase().includes(query)
+      )
+      .sort((a, b) => {
+        const doneA = a.status === TaskStatus.COMPLETED ? 1 : 0;
+        const doneB = b.status === TaskStatus.COMPLETED ? 1 : 0;
+        if (doneA !== doneB) return doneA - doneB;
+        const dueA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+        const dueB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+        return dueA - dueB;
+      })
+      .slice(0, MAX_RESULTS);
+  }, [tasks, query]);
+
+  // Events matching title, location or description: upcoming first (soonest
+  // first), then past ones (most recent first)
+  const eventResults = useMemo(() => {
+    if (query.length < 2) return [];
+    const now = Date.now();
+    const seen = new Set<string>();
+    return events
+      .filter(
+        (e) =>
+          !e.isMaster &&
+          (e.title?.toLowerCase().includes(query) ||
+            e.location?.toLowerCase().includes(query) ||
+            e.description?.toLowerCase().includes(query))
+      )
+      .filter((e) => {
+        const key = `${e.title}|${new Date(e.start).getTime()}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => {
+        const ta = new Date(a.start).getTime();
+        const tb = new Date(b.start).getTime();
+        const pa = ta < now ? 1 : 0;
+        const pb = tb < now ? 1 : 0;
+        if (pa !== pb) return pa - pb;
+        return pa ? tb - ta : ta - tb;
+      })
+      .slice(0, MAX_RESULTS);
+  }, [events, query]);
+
+  const openTask = (taskId: string) => {
+    useTaskModalStore.getState().setOpenTaskId(taskId);
+    onOpenChange(false);
+    router.push("/tasks");
+  };
+
+  const openEventDay = (start: Date | string) => {
+    const view = useViewStore.getState();
+    view.setDate(new Date(start));
+    view.setView("day");
+    onOpenChange(false);
+    router.push("/calendar");
+  };
 
   // Get filtered commands based on search or show all commands
   const commands = useMemo(() => {
@@ -68,6 +181,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           </Dialog.Description>
 
           <Command
+            shouldFilter={false}
             className={cn(
               "overflow-hidden rounded-lg border bg-white shadow-lg",
               "transform transition-all",
@@ -79,7 +193,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             <div className="flex items-center border-b px-3">
               <HiOutlineSearch className="h-5 w-5 text-gray-400" />
               <Command.Input
-                placeholder="Type a command or search..."
+                placeholder="Search tasks, events and commands..."
                 className="h-12 flex-1 px-3 text-base outline-none placeholder:text-gray-400"
                 value={search}
                 onValueChange={setSearch}
@@ -111,7 +225,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               {!search && !showAllCommands && (
                 <div className="px-2 py-3 text-sm text-gray-500">
                   <p className="mb-2">
-                    Start typing to search commands or try these:
+                    Start typing to search your tasks, events and commands, or
+                    try these:
                   </p>
                   <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div
@@ -178,6 +293,70 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                     </button>
                   </div>
                 </div>
+              )}
+
+              {taskResults.length > 0 && (
+                <Command.Group heading="Tasks">
+                  {taskResults.map((task) => {
+                    const done = task.status === TaskStatus.COMPLETED;
+                    return (
+                      <Command.Item
+                        key={`task-${task.id}`}
+                        value={`task-${task.id}`}
+                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-blue-50 aria-selected:text-blue-700"
+                        onSelect={() => openTask(task.id)}
+                      >
+                        {done ? (
+                          <HiOutlineCheckCircle className="h-4 w-4 flex-none text-gray-400" />
+                        ) : (
+                          <HiOutlineClipboardList className="h-4 w-4 flex-none" />
+                        )}
+                        <span
+                          className={cn(
+                            "truncate",
+                            done && "text-gray-400 line-through"
+                          )}
+                        >
+                          {task.title}
+                        </span>
+                        <span className="ml-auto flex-none text-xs text-gray-400">
+                          {task.scheduledStart && !done
+                            ? `${fmtDay(task.scheduledStart)} ${fmtTime(task.scheduledStart)}`
+                            : task.dueDate
+                              ? `due ${fmtDue(task.dueDate)}`
+                              : ""}
+                        </span>
+                      </Command.Item>
+                    );
+                  })}
+                </Command.Group>
+              )}
+
+              {eventResults.length > 0 && (
+                <Command.Group heading="Events">
+                  {eventResults.map((event) => (
+                    <Command.Item
+                      key={`event-${event.id}`}
+                      value={`event-${event.id}`}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-blue-50 aria-selected:text-blue-700"
+                      onSelect={() => openEventDay(event.start)}
+                    >
+                      <span
+                        className="h-2.5 w-2.5 flex-none rounded-full"
+                        style={{
+                          backgroundColor:
+                            feeds.find((f) => f.id === event.feedId)?.color ||
+                            "#3b82f6",
+                        }}
+                      />
+                      <span className="truncate">{event.title}</span>
+                      <span className="ml-auto flex-none text-xs text-gray-400">
+                        {fmtDay(event.start)}
+                        {!event.allDay && ` ${fmtTime(event.start)}`}
+                      </span>
+                    </Command.Item>
+                  ))}
+                </Command.Group>
               )}
 
               <Command.Empty className="py-6 text-center text-sm text-gray-500">

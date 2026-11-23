@@ -40,12 +40,22 @@ export default function TasksPage() {
   const { runAutoSchedule, isScheduling } = useAutoSchedule();
   const { fetchProjects, activeProject } = useProjectStore();
   const { viewMode, setViewMode } = useTaskPageSettings();
-  const { isOpen, setOpen } = useTaskModalStore();
+  const { isOpen, setOpen, openTaskId, setOpenTaskId } = useTaskModalStore();
 
   const [selectedTask, setSelectedTask] = useState<Task | undefined>();
   const [initialProjectId, setInitialProjectId] = useState<
     string | null | undefined
   >(undefined);
+
+  // Open a task requested from elsewhere (search) once it's loaded
+  useEffect(() => {
+    if (!openTaskId) return;
+    const task = tasks.find((t) => t.id === openTaskId);
+    if (!task) return;
+    setSelectedTask(task);
+    setOpen(true);
+    setOpenTaskId(null);
+  }, [openTaskId, tasks, setOpen, setOpenTaskId]);
 
   // Fetch tasks and tags on mount
   useEffect(() => {

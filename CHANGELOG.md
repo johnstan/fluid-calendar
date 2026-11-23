@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Search (⌘K) now finds tasks and calendar events as well as commands: matches titles, descriptions and event locations. Picking a task opens its card on the Tasks page; picking an event opens that day on the calendar
 - Phones/touch screens: tapping an empty time in Day or Week view opens a new event for that slot (1 hour; all-day row gives an all-day event). Mouse behaviour unchanged (drag across times to create)
 - Task blocks pushed to Google Calendar now carry the task's description plus priority, due date, duration, project and a link back to FluidCalendar (kept up to date when the task changes)
 - Tasks that Auto Schedule had to place after their due date (no free slot in time) are flagged as late: amber marker and warning icon on the calendar card, a "Late" badge in the task list, and a note in the quick view
