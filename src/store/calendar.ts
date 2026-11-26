@@ -133,6 +133,12 @@ interface CalendarStore extends CalendarState {
   syncCalendar: (feedId: string) => Promise<void>;
 }
 
+// Loading every event can take many seconds over a slow link. Each load
+// remembers this counter when it starts and only applies its result if
+// nothing newer happened meanwhile (a newer load, or a local delete), so a
+// slow, older response can't put back an event that was just removed.
+let eventsVersion = 0;
+
 export const useCalendarStore = create<CalendarStore>()((set, get) => ({
   // Initial state
   feeds: [],
@@ -576,6 +582,26 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
       const feed = get().feeds.find((f) => f.id === event.feedId);
       if (!feed) return;
 
+      // Take it off the calendar straight away rather than after the reload
+      // below, and make any load already in flight discard its (older) result
+      const seriesId =
+        mode === "series"
+          ? event.recurringEventId || event.masterEventId || event.id
+          : null;
+      eventsVersion++;
+      set({
+        events: get().events.filter(
+          (e) =>
+            e.id !== id &&
+            !(
+              seriesId &&
+              (e.id === seriesId ||
+                e.masterEventId === seriesId ||
+                e.recurringEventId === seriesId)
+            )
+        ),
+      });
+
       // For Google Calendar feeds, use the Google Calendar API
       if (feed.type === "GOOGLE") {
         const response = await fetch(`/api/calendar/google/events`, {
@@ -626,6 +652,8 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
       useTaskStore.getState().queueBackgroundSchedule();
     } catch (error) {
       console.error("Failed to remove event:", error);
+      // Put back whatever is really still there
+      void get().loadFromDatabase();
       throw error;
     }
   },
@@ -697,6 +725,7 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
 
   // Data loading
   loadFromDatabase: async () => {
+    const version = ++eventsVersion;
     try {
       set({ isLoading: true, error: undefined });
 
@@ -722,6 +751,7 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
       //   feeds: feeds.length,
       //   events: events.length,
       // });
+      if (version !== eventsVersion) return; // superseded by something newer
       set({ feeds, events });
     } catch (error) {
       console.error("Failed to load data from database:", error);
@@ -753,11 +783,13 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
   },
 
   refreshEvents: async () => {
+    const version = ++eventsVersion;
     try {
       set({ isLoading: true, error: undefined });
       const response = await fetch("/api/events");
       if (!response.ok) throw new Error("Failed to fetch calendar events");
       const events = await response.json();
+      if (version !== eventsVersion) return; // superseded by something newer
       set({ events });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : "Unknown error" });

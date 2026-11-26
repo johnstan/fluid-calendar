@@ -278,11 +278,17 @@ export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
       }
     } else {
       // It's an event
-      if (confirm("Are you sure you want to delete this event?")) {
-        await removeEvent(
-          quickViewItem.id,
-          quickViewItem.isRecurring ? "series" : "single"
-        );
+      // Recurring: only this occurrence. Deleting the whole series is in the
+      // full event form ("Apply to: All events"), not one click away here
+      const recurring = quickViewItem.isRecurring;
+      if (
+        confirm(
+          recurring
+            ? 'Delete this occurrence? (To delete all events in the series, open the event and choose "All events".)'
+            : "Are you sure you want to delete this event?"
+        )
+      ) {
+        await removeEvent(quickViewItem.id, "single");
         handleQuickViewClose();
       }
     }
