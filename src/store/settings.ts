@@ -117,6 +117,15 @@ const defaultSettings: Settings & { accounts: ConnectedAccount[] } = {
   accounts: [],
 };
 
+// Read a settings response, refusing error replies (e.g. while the database is
+// down): storing {"error": ...} in place of settings or the account list got
+// persisted in the browser and crashed the Settings page on every visit
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function readOk(res: Response): Promise<any> {
+  if (!res.ok) throw new Error(`${res.url} answered ${res.status}`);
+  return res.json();
+}
+
 export const useSettingsStore = create<SettingsStore>()(
   persist(
     (set, get) => ({
@@ -347,8 +356,10 @@ export const useSettingsStore = create<SettingsStore>()(
       },
       refreshAccounts: async () => {
         try {
-          const response = await fetch("/api/accounts");
-          const accounts = await response.json();
+          const accounts = await readOk(await fetch("/api/accounts"));
+          if (!Array.isArray(accounts)) {
+            throw new Error("Account list response was not a list");
+          }
           set({ accounts });
         } catch (error) {
           logger.error(
@@ -372,18 +383,21 @@ export const useSettingsStore = create<SettingsStore>()(
             systemSettings,
             accounts,
           ] = await Promise.all([
-            fetch("/api/user-settings").then((res) => res.json()),
-            fetch("/api/calendar-settings").then((res) => res.json()),
-            fetch("/api/notification-settings").then((res) => res.json()),
-            fetch("/api/integration-settings").then((res) => res.json()),
-            fetch("/api/data-settings").then((res) => res.json()),
-            fetch("/api/auto-schedule-settings").then((res) => res.json()),
-            fetch("/api/system-settings").then((res) => res.json()),
-            fetch("/api/accounts").then((res) => res.json()),
+            fetch("/api/user-settings").then(readOk),
+            fetch("/api/calendar-settings").then(readOk),
+            fetch("/api/notification-settings").then(readOk),
+            fetch("/api/integration-settings").then(readOk),
+            fetch("/api/data-settings").then(readOk),
+            fetch("/api/auto-schedule-settings").then(readOk),
+            fetch("/api/system-settings").then(readOk),
+            fetch("/api/accounts").then(readOk),
           ]);
 
           // Set initialized flag
-          set({ initialized: true, accounts });
+          set({
+            initialized: true,
+            ...(Array.isArray(accounts) && { accounts }),
+          });
 
           // Update all settings
           get().updateUserSettings({
@@ -481,6 +495,18 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: "calendar-settings",
+      // Drop an account list that isn't a list (saved from an error reply by
+      // an older version), so it can't break the Settings page
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<SettingsStore>;
+        return {
+          ...current,
+          ...saved,
+          accounts: Array.isArray(saved.accounts)
+            ? saved.accounts
+            : current.accounts,
+        };
+      },
       partialize: (state) => ({
         ...state,
         system: {

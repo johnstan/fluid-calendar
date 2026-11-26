@@ -122,6 +122,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Settings no longer crashes ("Something went wrong") after the server was briefly unavailable: an error reply is no longer saved in the browser in place of the account list and settings, and a bad saved account list is ignored
 - Google Tasks sync stopped working once Google's daily API limit ran out: every synced task was re-sent to Google on every run (each save made it look changed). Sync now only sends tasks whose title, notes, status, due date etc. actually changed, and fetches tasks 100 per call instead of 20
 - Editing all events of a recurring series no longer removes the series' end date (or repeat count, or rules like "2nd Tuesday"), and no longer brings back occurrences deleted in Google. The event form now shows when a series ends
 - Recurring tasks ticked off in Google Tasks moved to their next day but stayed unscheduled (shown in the all-day row) until Auto Schedule was run by hand; the background task sync now runs Auto Schedule after rolling tasks forward
