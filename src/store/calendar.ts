@@ -3,7 +3,13 @@ import { v4 as uuidv4 } from "uuid";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { newDate, normalizeAllDayDate } from "@/lib/date-utils";
+import {
+  addDays,
+  newDate,
+  normalizeAllDayDate,
+  startOfDay,
+  subDays,
+} from "@/lib/date-utils";
 import { DEFAULT_TASK_COLOR } from "@/lib/task-utils";
 
 import { useTaskStore } from "@/store/task";
@@ -110,6 +116,10 @@ interface CalendarStore extends CalendarState {
 
   // Data loading
   loadFromDatabase: () => Promise<void>;
+  /** Range of events currently loaded (the visible dates plus padding) */
+  loadedRange: { start: Date; end: Date } | null;
+  /** Make sure events between start and end are loaded */
+  ensureEventsRange: (start: Date, end: Date) => Promise<void>;
 
   // State management
   setFeeds: (feeds: CalendarFeed[]) => void;
@@ -139,10 +149,36 @@ interface CalendarStore extends CalendarState {
 // slow, older response can't put back an event that was just removed.
 let eventsVersion = 0;
 
+// Load this much either side of what's on screen, so moving a week or two
+// doesn't need a new load
+const RANGE_PADDING_DAYS = 14;
+
+function paddedRange(start: Date, end: Date) {
+  return {
+    start: subDays(startOfDay(start), RANGE_PADDING_DAYS),
+    end: addDays(startOfDay(end), RANGE_PADDING_DAYS + 1),
+  };
+}
+
+// Before the calendar has said what it shows: today's weeks
+function defaultRange() {
+  const today = newDate();
+  return paddedRange(today, addDays(today, 7));
+}
+
+function eventsUrl(range: { start: Date; end: Date }) {
+  const params = new URLSearchParams({
+    start: range.start.toISOString(),
+    end: range.end.toISOString(),
+  });
+  return `/api/events?${params}`;
+}
+
 export const useCalendarStore = create<CalendarStore>()((set, get) => ({
   // Initial state
   feeds: [],
   events: [],
+  loadedRange: null,
   isLoading: false,
   error: undefined,
   selectedDate: newDate(),
@@ -724,10 +760,18 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
   },
 
   // Data loading
+  ensureEventsRange: async (start, end) => {
+    const loaded = get().loadedRange;
+    if (loaded && loaded.start <= start && loaded.end >= end) return;
+    set({ loadedRange: paddedRange(start, end) });
+    await get().loadFromDatabase();
+  },
+
   loadFromDatabase: async () => {
     const version = ++eventsVersion;
+    const range = get().loadedRange ?? defaultRange();
     try {
-      set({ isLoading: true, error: undefined });
+      set({ isLoading: true, error: undefined, loadedRange: range });
 
       // Load feeds
       // console.log("Fetching feeds...");
@@ -740,7 +784,7 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
 
       // Load events
       // console.log("Fetching events...");
-      const eventsResponse = await fetch("/api/events");
+      const eventsResponse = await fetch(eventsUrl(range));
       if (!eventsResponse.ok) {
         throw new Error("Failed to load events from database");
       }
@@ -784,9 +828,10 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
 
   refreshEvents: async () => {
     const version = ++eventsVersion;
+    const range = get().loadedRange ?? defaultRange();
     try {
-      set({ isLoading: true, error: undefined });
-      const response = await fetch("/api/events");
+      set({ isLoading: true, error: undefined, loadedRange: range });
+      const response = await fetch(eventsUrl(range));
       if (!response.ok) throw new Error("Failed to fetch calendar events");
       const events = await response.json();
       if (version !== eventsVersion) return; // superseded by something newer

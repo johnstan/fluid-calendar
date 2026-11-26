@@ -71,6 +71,7 @@ export interface AutoScheduleSettings {
   lowEnergyStart: number | null;
   lowEnergyEnd: number | null;
   groupByProject: boolean;
+  scheduleHorizonDays?: number; // How far ahead tasks may be scheduled
   pushTasksToCalendar?: boolean; // Push scheduled task blocks to calendar
   pushTasksFeedId?: string | null; // Calendar feed ID for pushing tasks
 }

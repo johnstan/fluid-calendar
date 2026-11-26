@@ -2,6 +2,7 @@
 import {
   addDays,
   addMinutes,
+  addMonths,
   areIntervalsOverlapping,
   differenceInHours,
   differenceInMinutes,
@@ -21,6 +22,7 @@ import {
   setMinutes,
   subDays,
   subMinutes,
+  subMonths,
 } from "date-fns";
 import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz";
 
@@ -248,6 +250,8 @@ export function convertToUserTimezone(date: Date, timezone: string): Date {
 // Re-export date-fns functions
 export {
   addMinutes,
+  addMonths,
+  subMonths,
   isWithinInterval,
   setHours,
   setMinutes,

@@ -19,12 +19,57 @@ export async function GET(request: NextRequest) {
 
     logger.debug("Fetching events from database...", {}, LOG_SOURCE);
 
+    // Optional filters:
+    //   ?start=&end=  only events overlapping that range (plus recurring
+    //                 masters), so the calendar loads what it shows rather
+    //                 than every synced event
+    //   ?q=           search all events by title / location / description
+    const params = request.nextUrl.searchParams;
+    const start = params.get("start") ? newDate(params.get("start")!) : null;
+    const end = params.get("end") ? newDate(params.get("end")!) : null;
+    const q = params.get("q")?.trim();
+    const validRange =
+      start && end && !isNaN(start.getTime()) && !isNaN(end.getTime());
+
+    if (q) {
+      const contains = { contains: q, mode: "insensitive" as const };
+      const matches = await prisma.calendarEvent.findMany({
+        where: {
+          feed: { userId },
+          isMaster: false,
+          OR: [
+            { title: contains },
+            { location: contains },
+            { description: contains },
+          ],
+        },
+        select: {
+          id: true,
+          feedId: true,
+          title: true,
+          start: true,
+          end: true,
+          allDay: true,
+          location: true,
+        },
+        orderBy: { start: "asc" },
+        take: 200,
+      });
+      return NextResponse.json(matches);
+    }
+
     // Get events from feeds that belong to the current user
     const events = await prisma.calendarEvent.findMany({
       where: {
         feed: {
           userId,
         },
+        ...(validRange && {
+          OR: [
+            { start: { lt: end! }, end: { gt: start! } },
+            { isMaster: true },
+          ],
+        }),
       },
       include: {
         feed: {

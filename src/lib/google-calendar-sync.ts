@@ -2,7 +2,13 @@ import { Prisma } from "@prisma/client";
 import { calendar_v3 } from "googleapis";
 
 import { reuseEventIds } from "@/lib/calendar-event-ids";
-import { createAllDayDate, newDate, newDateFromYMD } from "@/lib/date-utils";
+import {
+  addMonths,
+  createAllDayDate,
+  newDate,
+  startOfDay,
+  subMonths,
+} from "@/lib/date-utils";
 import { getGoogleCalendarClient } from "@/lib/google-calendar";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
@@ -68,11 +74,21 @@ type EventRow = Prisma.CalendarEventCreateManyInput;
 /** A full re-import runs at least this often, even with a valid sync token */
 export const FULL_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
-/** Events kept locally: from 1 Jan this year until 1 Jan next year. */
+/** How far back and ahead events are kept locally */
+export const SYNC_MONTHS_BACK = 3;
+export const SYNC_MONTHS_AHEAD = 12;
+
+/**
+ * Events kept locally: a rolling window from 3 months back to 12 months
+ * ahead (it used to be the calendar year, which left next January empty all
+ * through December). Day-aligned, so it only moves once a day - the daily
+ * full sync picks up events that have moved into the window.
+ */
 export function syncWindow(now: Date = newDate()) {
+  const today = startOfDay(now);
   return {
-    timeMin: newDateFromYMD(now.getFullYear(), 0, 1),
-    timeMax: newDateFromYMD(now.getFullYear() + 1, 0, 1),
+    timeMin: subMonths(today, SYNC_MONTHS_BACK),
+    timeMax: addMonths(today, SYNC_MONTHS_AHEAD),
   };
 }
 

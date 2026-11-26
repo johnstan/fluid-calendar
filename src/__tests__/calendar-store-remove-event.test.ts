@@ -42,7 +42,7 @@ describe("removing an event", () => {
     let eventsCalls = 0;
     jest.spyOn(global, "fetch").mockImplementation(async (url, init) => {
       if (String(url) === "/api/feeds") return json([feed]);
-      if (String(url) === "/api/events") {
+      if (String(url).startsWith("/api/events")) {
         eventsCalls++;
         return eventsCalls === 1 ? staleEvents.promise : json(after);
       }

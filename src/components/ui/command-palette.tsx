@@ -28,6 +28,16 @@ import { TaskStatus } from "@/types/task";
 
 const MAX_RESULTS = 8;
 
+interface SearchEvent {
+  id: string;
+  feedId: string;
+  title: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+  location?: string | null;
+}
+
 const fmtDay = (d: Date | string) =>
   new Date(d).toLocaleDateString("en-GB", {
     weekday: "short",
@@ -59,8 +69,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const { searchCommands, executeCommand, getAllCommands } = useCommands();
   const router = useRouter();
   const tasks = useTaskStore((s) => s.tasks);
-  const events = useCalendarStore((s) => s.events);
   const feeds = useCalendarStore((s) => s.feeds);
+  const [events, setEvents] = useState<SearchEvent[]>([]);
 
   // Make sure there is something to search, whichever page we're on
   useEffect(() => {
@@ -68,10 +78,36 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     if (useTaskStore.getState().tasks.length === 0) {
       void useTaskStore.getState().fetchTasks();
     }
-    if (useCalendarStore.getState().events.length === 0) {
-      void useCalendarStore.getState().loadFromDatabase();
+    if (useCalendarStore.getState().feeds.length === 0) {
+      void useCalendarStore.getState().refreshFeeds();
     }
   }, [open]);
+
+  // Events are searched on the server: the calendar only keeps the dates
+  // it's showing loaded, but search should find any synced event
+  const trimmed = search.trim();
+  useEffect(() => {
+    if (!open || trimmed.length < 2) {
+      setEvents([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/events?${new URLSearchParams({ q: trimmed })}`
+        );
+        const found = res.ok ? await res.json() : [];
+        if (!cancelled) setEvents(Array.isArray(found) ? found : []);
+      } catch {
+        if (!cancelled) setEvents([]);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [open, trimmed]);
 
   const query = search.trim().toLowerCase();
 
@@ -102,13 +138,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     const now = Date.now();
     const seen = new Set<string>();
     return events
-      .filter(
-        (e) =>
-          !e.isMaster &&
-          (e.title?.toLowerCase().includes(query) ||
-            e.location?.toLowerCase().includes(query) ||
-            e.description?.toLowerCase().includes(query))
-      )
       .filter((e) => {
         const key = `${e.title}|${new Date(e.start).getTime()}`;
         if (seen.has(key)) return false;

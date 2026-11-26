@@ -102,6 +102,7 @@ const defaultSettings: Settings & { accounts: ConnectedAccount[] } = {
     lowEnergyStart: 15, // 3 PM
     lowEnergyEnd: 20, // 8 PM
     groupByProject: false,
+    scheduleHorizonDays: 21,
   },
   system: {
     googleClientId: undefined,
@@ -471,6 +472,7 @@ export const useSettingsStore = create<SettingsStore>()(
             lowEnergyStart: autoScheduleSettings.lowEnergyStart,
             lowEnergyEnd: autoScheduleSettings.lowEnergyEnd,
             groupByProject: autoScheduleSettings.groupByProject,
+            scheduleHorizonDays: autoScheduleSettings.scheduleHorizonDays,
           });
 
           get().updateSystemSettings({

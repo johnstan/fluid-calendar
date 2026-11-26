@@ -22,6 +22,9 @@ interface PerformanceMetrics {
   metadata?: Record<string, string | number | Date | boolean>;
 }
 
+const DEFAULT_HORIZON_DAYS = 21;
+const MAX_HORIZON_DAYS = 90;
+
 export class SchedulingService {
   private calendarService: CalendarServiceImpl;
   private settings: AutoScheduleSettings | null;
@@ -99,6 +102,22 @@ export class SchedulingService {
     this.userTimeZone = userSettings?.timeZone;
   }
 
+  /**
+   * Windows to look for a slot in, nearest first: the coming week, then the
+   * rest of the user's horizon (Settings > Auto Schedule, default 3 weeks).
+   * A task that fits this week costs no more than before; only tasks that
+   * don't fit search the longer range.
+   */
+  private getSchedulingWindows(): { days: number; label: string }[] {
+    const horizon = Math.min(
+      Math.max(this.settings?.scheduleHorizonDays ?? DEFAULT_HORIZON_DAYS, 1),
+      MAX_HORIZON_DAYS
+    );
+    const windows = [{ days: Math.min(7, horizon), label: "1 week" }];
+    if (horizon > 7) windows.push({ days: horizon, label: `${horizon} days` });
+    return windows;
+  }
+
   private getTimeSlotManager(): TimeSlotManagerImpl {
     const startTime = this.startMetric("getTimeSlotManager");
 
@@ -154,13 +173,8 @@ export class SchedulingService {
 
     const initialScores = new Map<string, number>();
 
-    //TODO: move to utils
     // Use the same windows as scheduling
-    const windows = [
-      { days: 7, label: "1 week" },
-      // { days: 14, label: "2 weeks" },
-      // { days: 30, label: "1 month" },
-    ];
+    const windows = this.getSchedulingWindows();
 
     // Process tasks in parallel batches
     const batchSize = 8;
@@ -267,11 +281,8 @@ export class SchedulingService {
     });
 
     const now = newDate();
-    const windows = [
-      { days: 7, label: "1 week" },
-      // { days: 14, label: "2 weeks" },
-      // { days: 30, label: "1 month" },
-    ];
+    // Use the same windows as scheduling
+    const windows = this.getSchedulingWindows();
 
     for (const window of windows) {
       const windowStart = this.startMetric("tryWindow", {

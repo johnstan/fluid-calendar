@@ -79,6 +79,9 @@ export function MultiMonthView({
   // Update events when the calendar view changes
   const handleDatesSet = useCallback(
     async (arg: DatesSetArg) => {
+      // Load events for these dates if they aren't loaded yet (the store
+      // only holds the visible range plus a margin); redraws when they arrive
+      void useCalendarStore.getState().ensureEventsRange(arg.start, arg.end);
       const items = getAllCalendarItems(arg.start, arg.end);
       const formattedItems = items
         .filter((item) => {

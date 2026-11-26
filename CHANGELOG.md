@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Auto Schedule: new "Schedule Ahead" setting (1 week to 3 months, default 3 weeks). Tasks that fit in the coming week still go there first; others can now be planned further out instead of staying unscheduled
 - Calendar: ticking a task off in its popup now closes the popup straight away (it no longer reopens in the top-left corner)
 - Search (⌘K) now finds tasks and calendar events as well as commands: matches titles, descriptions and event locations. Picking a task opens its card on the Tasks page; picking an event opens that day on the calendar
 - Phones/touch screens: tapping an empty time in Day or Week view opens a new event for that slot (1 hour; all-day row gives an all-day event). Mouse behaviour unchanged (drag across times to create)
@@ -122,6 +123,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Calendar loads much faster: it now loads only the dates on screen (plus two weeks either side) instead of every synced event. Search (⌘K) still searches all events, on the server
+- Google Calendar sync now keeps a rolling window from 3 months back to 12 months ahead, instead of only the current calendar year (which left next January empty during December)
 - Calendar: a deleted event now disappears immediately, instead of staying until you left and reopened the calendar (the full event reload can take several seconds, and a slower, older reload could put it back)
 - Calendar: the Delete button in the event popup now deletes only that occurrence of a recurring event (it used to delete the whole series without asking); delete a whole series from the full event form
 - Settings no longer crashes ("Something went wrong") after the server was briefly unavailable: an error reply is no longer saved in the browser in place of the account list and settings, and a bad saved account list is ignored

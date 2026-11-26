@@ -355,6 +355,9 @@ model AutoScheduleSettings {
   // Project Settings
   groupByProject Boolean @default(false)
 
+  // How far ahead Auto Schedule may place tasks (days)
+  scheduleHorizonDays Int @default(21)
+
   // Calendar block push settings
   pushTasksToCalendar Boolean @default(false) // Enable pushing task blocks to calendar
   pushTasksFeedId     String? // ID of target CalendarFeed (must be GOOGLE type)

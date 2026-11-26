@@ -24,6 +24,15 @@ import { useSettingsStore } from "@/store/settings";
 
 import { SettingRow, SettingsSection } from "./SettingsSection";
 
+const HORIZON_OPTIONS = [
+  { days: 7, label: "1 week" },
+  { days: 14, label: "2 weeks" },
+  { days: 21, label: "3 weeks" },
+  { days: 30, label: "1 month" },
+  { days: 60, label: "2 months" },
+  { days: 90, label: "3 months" },
+];
+
 export function AutoScheduleSettings() {
   const { autoSchedule, updateAutoScheduleSettings, user } = useSettingsStore();
   const { feeds, loadFromDatabase } = useCalendarStore();
@@ -336,6 +345,27 @@ export function AutoScheduleSettings() {
       </SettingRow>
 
       <SettingRow
+        label="Schedule Ahead"
+        description="How far ahead Auto Schedule may place tasks. Tasks that fit in the coming week still go there first"
+      >
+        <select
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          value={autoSchedule.scheduleHorizonDays ?? 21}
+          onChange={(e) =>
+            updateAutoScheduleSettings({
+              scheduleHorizonDays: Number(e.target.value),
+            })
+          }
+        >
+          {HORIZON_OPTIONS.map((o) => (
+            <option key={o.days} value={o.days}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </SettingRow>
+
+      <SettingRow
         label="Project Grouping"
         description="Try to schedule tasks from the same project together"
       >
@@ -384,7 +414,9 @@ export function AutoScheduleSettings() {
                         <div className="flex items-center gap-2">
                           <span
                             className="h-3 w-3 rounded-full"
-                            style={{ backgroundColor: feed.color || "var(--muted)" }}
+                            style={{
+                              backgroundColor: feed.color || "var(--muted)",
+                            }}
                           />
                           {feed.name}
                         </div>
@@ -394,7 +426,8 @@ export function AutoScheduleSettings() {
               </Select>
               {feeds.filter((feed) => feed.type === "GOOGLE").length === 0 && (
                 <div className="text-sm text-muted-foreground mt-2">
-                  No Google calendars found. Please connect a Google account in Calendar Settings.
+                  No Google calendars found. Please connect a Google account in
+                  Calendar Settings.
                 </div>
               )}
             </div>
