@@ -136,6 +136,8 @@ export class SchedulingService {
         updatedAt: newDate(),
         pushTasksToCalendar: false,
         pushTasksFeedId: null,
+        scheduleHorizonDays:
+          storeSettings.scheduleHorizonDays ?? DEFAULT_HORIZON_DAYS,
       };
     }
 
