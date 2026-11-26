@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 import dynamic from "next/dynamic";
 
-import { HiMenu } from "react-icons/hi";
+import { HiMenu, HiX } from "react-icons/hi";
 import { IoChevronBack, IoChevronForward } from "react-icons/io5";
 
 import { DayView } from "@/components/calendar/DayView";
@@ -149,6 +149,17 @@ export function Calendar({
         style={{ marginLeft: isSidebarOpen ? 0 : "-20rem" }}
       >
         <div className="flex h-full flex-col">
+          {/* On phones the panel covers the menu button: give it its own */}
+          <div className="flex justify-end px-2 pt-2 md:hidden">
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="rounded-lg p-2 text-foreground hover:bg-muted"
+              aria-label="Close sidebar"
+            >
+              <HiX className="h-5 w-5" />
+            </button>
+          </div>
+
           {/* Feed Manager */}
           <div className="flex-1 overflow-y-auto">
             <FeedManager />
@@ -158,6 +169,15 @@ export function Calendar({
           {/* <SponsorshipBanner /> */}
         </div>
       </aside>
+
+      {/* Phones: dim the calendar behind the open panel; tap it to close */}
+      {isSidebarOpen && (
+        <div
+          className="absolute inset-0 z-20 bg-black/30 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
 
       {/* Main Content */}
       <main className="flex min-w-0 flex-1 flex-col bg-background">

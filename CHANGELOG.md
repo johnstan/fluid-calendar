@@ -123,6 +123,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Calendar on phones: the side panel can be closed again, with a close button in the panel or by tapping the dimmed calendar beside it (it used to cover the menu button)
 - Calendar loads much faster: it now loads only the dates on screen (plus two weeks either side) instead of every synced event. Search (⌘K) still searches all events, on the server
 - Google Calendar sync now keeps a rolling window from 3 months back to 12 months ahead, instead of only the current calendar year (which left next January empty during December)
 - Calendar: a deleted event now disappears immediately, instead of staying until you left and reopened the calendar (the full event reload can take several seconds, and a slower, older reload could put it back)
