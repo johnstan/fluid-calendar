@@ -75,7 +75,7 @@ export class GoogleTaskProvider implements TaskProviderInterface {
         // showHidden: tasks completed in the Google Tasks apps/web become
         // "hidden" and are otherwise left out, which made a completion look
         // like the task had disappeared (and could delete the local copy)
-        const params: TasksListParams = { tasklist: listId, pageToken, showHidden: true } as TasksListParams;
+        const params: TasksListParams = { tasklist: listId, pageToken, showHidden: true, maxResults: 100 } as TasksListParams;
 
         if (options) {
           if (options.includeCompleted === false) params.showCompleted = false;

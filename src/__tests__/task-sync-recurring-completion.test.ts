@@ -158,3 +158,64 @@ describe("GoogleTaskProvider", () => {
     });
   });
 });
+
+describe("tasks unchanged on both sides", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  const inGoogle = {
+    id: "g-1",
+    title: "Home office - shred, scan photos/videos, tidy",
+    description: "notes",
+    status: "needsAction",
+    listId: "list-1",
+    dueDate: new Date("2026-11-20T00:00:00.000Z"),
+    lastModified: new Date("2026-11-20T07:00:00.000Z"),
+  };
+
+  it("makes no Google call when only local bookkeeping (updatedAt, schedule) changed", async () => {
+    const { TaskChangeTracker } = await import(
+      "@/lib/task-sync/task-change-tracker"
+    );
+    const task = localTask({
+      isRecurring: false,
+      recurrenceRule: null,
+      // Bumped by the last sync's own write / Auto Schedule moving it
+      updatedAt: new Date("2026-11-26T06:00:00.000Z"),
+      scheduledStart: new Date("2026-11-27T09:00:00.000Z"),
+    });
+    const synced = { ...task, syncHash: "" };
+    synced.syncHash = new TaskChangeTracker().generateTaskHash(synced);
+
+    const provider = { updateTask: jest.fn() };
+    await resolve(synced, inGoogle, provider);
+
+    expect(provider.updateTask).not.toHaveBeenCalled();
+    expect(mp.task.update).not.toHaveBeenCalled();
+  });
+
+  it("still pushes a real local edit once", async () => {
+    const { TaskChangeTracker } = await import(
+      "@/lib/task-sync/task-change-tracker"
+    );
+    const before = localTask({ isRecurring: false, recurrenceRule: null });
+    const syncHash = new TaskChangeTracker().generateTaskHash(before);
+    const edited = { ...before, title: "Home office - tidy", syncHash };
+
+    const provider = {
+      updateTask: jest.fn(async () => ({
+        id: "g-1",
+        lastModified: new Date("2026-11-26T06:01:00.000Z"),
+      })),
+    };
+    await resolve(edited, inGoogle, provider);
+
+    expect(provider.updateTask).toHaveBeenCalledTimes(1);
+    expect((provider.updateTask.mock.calls[0] as unknown[])[2]).toMatchObject({
+      title: "Home office - tidy",
+    });
+    // the pushed state is recorded, so the next run won't push it again
+    expect(mp.task.update.mock.calls[0][0].data.syncHash).toBe(
+      new TaskChangeTracker().generateTaskHash(edited)
+    );
+  });
+});

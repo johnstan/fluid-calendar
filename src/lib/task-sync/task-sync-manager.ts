@@ -1137,6 +1137,11 @@ export class TaskSyncManager {
             ? newDate(reopened.lastModifiedDateTime)
             : newDate(),
         syncStatus: "SYNCED",
+        syncHash: new TaskChangeTracker().generateTaskHash({
+          ...localTask,
+          status: TaskStatus.TODO,
+          dueDate: next.dueDate,
+        }),
       },
     });
 
@@ -1200,6 +1205,16 @@ export class TaskSyncManager {
       if (rolled) return;
     }
 
+    // Has anything that's synced (title, notes, status, due date, ...) changed
+    // here since the last sync? Compared by content, not by updatedAt: every
+    // save (including this sync's own bookkeeping and Auto Schedule moving a
+    // task) bumps updatedAt, which made every task look locally changed and
+    // get re-sent to Google on every run - enough to exhaust the daily quota.
+    const tracker = new TaskChangeTracker();
+    const localChanged = localTask.syncHash
+      ? tracker.generateTaskHash(localTask) !== localTask.syncHash
+      : localUpdatedAt > (localTask.externalUpdatedAt || new Date(0));
+
     if (externalIsNewer) {
       // External is newer - update local with external data
       // But preserve any local fields that weren't changed in external
@@ -1223,10 +1238,11 @@ export class TaskSyncManager {
           externalUpdatedAt: externalUpdatedAt,
           lastSyncedAt: newDate(),
           syncStatus: "SYNCED",
-          syncHash: new TaskChangeTracker().generateTaskHash(localTask),
+          // The state both sides now agree on
+          syncHash: tracker.generateTaskHash({ ...localTask, ...updateData }),
         },
       });
-    } else if (localUpdatedAt > (localTask.externalUpdatedAt || new Date(0))) {
+    } else if (localChanged) {
       // Local is newer - update external with local data
       logger.debug(
         `Local task ${localTask.id} is newer, updating external task`,
@@ -1257,10 +1273,10 @@ export class TaskSyncManager {
               : new Date(),
           lastSyncedAt: newDate(),
           syncStatus: "SYNCED",
-          syncHash: new TaskChangeTracker().generateTaskHash(localTask),
+          syncHash: tracker.generateTaskHash(localTask),
         },
       });
     }
-    // If timestamps are equal, no update needed
+    // Otherwise nothing changed on either side: no API call, no DB write
   }
 }
