@@ -37,6 +37,17 @@ const NotificationProvider = dynamic<{ children: React.ReactNode }>(
   }
 );
 
+// "?" opens the shortcuts list, but not while typing (an event title,
+// a task, a comment...), where it should just type a question mark
+function isTypingTarget(target: EventTarget | null) {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  );
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -54,7 +65,11 @@ export default function RootLayout({
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         setCommandPaletteOpen((open) => !open);
-      } else if (e.key === "?" && !(e.metaKey || e.ctrlKey)) {
+      } else if (
+        e.key === "?" &&
+        !(e.metaKey || e.ctrlKey) &&
+        !isTypingTarget(e.target)
+      ) {
         e.preventDefault();
         setShortcutsOpen(true);
       }
