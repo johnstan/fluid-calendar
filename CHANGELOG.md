@@ -124,6 +124,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Calendar popup: long titles without spaces (e.g. "A/B/C/D") now wrap instead of running past the edge
 - Task sync no longer moves a task into the list's project when it changes in Google, and a task moved to another project stays linked instead of being deleted or imported twice. Completed tasks that were never in the list aren't copied into it
 - Typing a "?" in a text field (e.g. an event title) no longer opens the keyboard shortcuts list
 - Calendar on phones: the side panel can be closed again, with a close button in the panel or by tapping the dimmed calendar beside it (it used to cover the menu button)

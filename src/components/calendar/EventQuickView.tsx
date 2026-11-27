@@ -139,21 +139,22 @@ export function EventQuickView({
         onOpenAutoFocus={(e) => e.preventDefault()}
         forceMount
       >
-        <div className="space-y-3">
+        {/* Long unbroken titles ("A/B/C/D...") wrap instead of overflowing */}
+        <div className="space-y-3 [overflow-wrap:anywhere]">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="event-title flex items-center gap-2 font-medium text-foreground">
-              {item.title}
+            <h3 className="event-title flex min-w-0 items-center gap-2 font-medium text-foreground">
+              <span className="min-w-0">{item.title}</span>
               {isTask ? (
                 <>
                   {taskItem?.isRecurring && (
                     <IoRepeat
-                      className="h-4 w-4 text-primary"
+                      className="h-4 w-4 flex-none text-primary"
                       title="Recurring task"
                     />
                   )}
                   {taskItem?.scheduleLocked && (
                     <IoLockClosedOutline
-                      className="h-4 w-4 text-warning"
+                      className="h-4 w-4 flex-none text-warning"
                       title="Schedule locked"
                     />
                   )}
@@ -161,7 +162,7 @@ export function EventQuickView({
               ) : (
                 eventItem?.isRecurring && (
                   <IoRepeat
-                    className="h-4 w-4 text-primary"
+                    className="h-4 w-4 flex-none text-primary"
                     title="Recurring event"
                   />
                 )
