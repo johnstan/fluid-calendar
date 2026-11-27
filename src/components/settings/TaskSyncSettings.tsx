@@ -35,6 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { format } from "@/lib/date-utils";
 import { logger } from "@/lib/logger";
+import { cn } from "@/lib/utils";
 
 import { useProjectStore } from "@/store/project";
 import { useSettingsStore } from "@/store/settings";
@@ -60,7 +61,7 @@ interface TaskProvider {
   settings?: {
     [key: string]: string | number | boolean | undefined;
   };
-} 
+}
 
 interface TaskList {
   id: string;
@@ -70,6 +71,7 @@ interface TaskList {
   mappingId?: string;
   projectId?: string;
   projectName?: string;
+  extraProjectIds?: string[];
   lastSyncedAt?: string;
   mappingDirection?: "incoming" | "outgoing" | "bidirectional";
 }
@@ -410,6 +412,38 @@ export function TaskSyncSettings() {
   };
 
   // Delete a mapping
+  // Add or remove an extra project syncing to a list
+  const toggleExtraProject = async (list: TaskList, projectId: string) => {
+    if (!selectedProvider || !list.mappingId) return;
+    const current = list.extraProjectIds ?? [];
+    const extraProjectIds = current.includes(projectId)
+      ? current.filter((id) => id !== projectId)
+      : [...current, projectId];
+    try {
+      setIsLoading(true);
+      const response = await fetch(
+        `/api/task-sync/mappings/${list.mappingId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ extraProjectIds }),
+        }
+      );
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || "Failed to update the list's projects");
+      }
+      toast.success("Projects for this list updated");
+      await fetchTaskLists(selectedProvider.id);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update projects"
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const deleteMapping = async (mappingId: string) => {
     if (!window.confirm("Are you sure you want to remove this mapping?")) {
       return;
@@ -782,6 +816,52 @@ export function TaskSyncSettings() {
                             Mapped to project:
                           </span>{" "}
                           <span>{list.projectName}</span>
+                          <div className="mt-2">
+                            <div className="text-xs text-muted-foreground">
+                              Also sync these projects to this list (new tasks
+                              from the list go to {list.projectName}):
+                            </div>
+                            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                              {projects
+                                .filter((p) => p.id !== list.projectId)
+                                .map((p) => {
+                                  const usedElsewhere = taskLists.some(
+                                    (other) =>
+                                      other.id !== list.id &&
+                                      (other.projectId === p.id ||
+                                        other.extraProjectIds?.includes(p.id))
+                                  );
+                                  return (
+                                    <label
+                                      key={p.id}
+                                      className={cn(
+                                        "flex items-center gap-1.5 text-sm",
+                                        usedElsewhere && "opacity-50"
+                                      )}
+                                      title={
+                                        usedElsewhere
+                                          ? "Already syncs with another list"
+                                          : undefined
+                                      }
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={
+                                          list.extraProjectIds?.includes(
+                                            p.id
+                                          ) ?? false
+                                        }
+                                        disabled={isLoading || usedElsewhere}
+                                        onChange={() =>
+                                          toggleExtraProject(list, p.id)
+                                        }
+                                      />
+                                      {p.name}
+                                    </label>
+                                  );
+                                })}
+                            </div>
+                          </div>
                           {list.lastSyncedAt && (
                             <div className="text-xs text-muted-foreground">
                               Last synced:{" "}

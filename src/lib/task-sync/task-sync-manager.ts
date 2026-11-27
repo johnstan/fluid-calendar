@@ -47,6 +47,65 @@ export type ConflictResolution =
   | { strategy: "USE_REMOTE" }
   | { strategy: "MERGE"; fields: Record<string, "LOCAL" | "REMOTE"> };
 
+/** All projects whose tasks sync with this list: the main one first */
+export function mappingProjectIds(mapping: {
+  projectId: string;
+  extraProjectIds?: string[] | null;
+}): string[] {
+  return [
+    mapping.projectId,
+    ...(mapping.extraProjectIds ?? []).filter((id) => id !== mapping.projectId),
+  ];
+}
+
+/**
+ * Local tasks a sync of this list works with: every task in the list's
+ * projects (to push new ones), plus every task already linked to this list
+ * wherever it lives now - so a task moved to another project stays linked
+ * instead of being deleted or imported a second time.
+ */
+export function localTasksForMappingWhere(mapping: {
+  projectId: string;
+  extraProjectIds?: string[] | null;
+  externalListId: string;
+  provider: { userId: string; type: string };
+}) {
+  return {
+    userId: mapping.provider.userId,
+    OR: [
+      { projectId: { in: mappingProjectIds(mapping) } },
+      {
+        source: mapping.provider.type,
+        externalListId: mapping.externalListId,
+      },
+    ],
+  };
+}
+
+/** Is this local task linked to this mapping's list? */
+export function isLinkedToMapping(
+  task: {
+    externalTaskId?: string | null;
+    externalListId?: string | null;
+    source?: string | null;
+    projectId?: string | null;
+  },
+  mapping: {
+    projectId: string;
+    extraProjectIds?: string[] | null;
+    externalListId: string;
+    provider: { type: string };
+  }
+): boolean {
+  if (!task.externalTaskId || task.source !== mapping.provider.type) {
+    return false;
+  }
+  if (task.externalListId)
+    return task.externalListId === mapping.externalListId;
+  // Linked before the list was recorded on tasks: go by project
+  return mappingProjectIds(mapping).includes(task.projectId ?? "");
+}
+
 export class TaskSyncManager {
   /** Count for the current syncTaskList run (see SyncResult.rolledForward) */
   private rolledForward = 0;
@@ -365,13 +424,13 @@ export class TaskSyncManager {
     // UIDs are meant to be globally unique so this is rare; include
     // externalListId in the key if cross-list UID collisions become a problem.
     const localTasks = (await prisma.task.findMany({
-      where: { projectId: mapping.projectId },
+      where: localTasksForMappingWhere(mapping),
       include: { tags: true, project: true },
     })) as unknown as TaskWithSync[];
 
     const localTaskByExternalId = new Map(
       localTasks
-        .filter((t) => t.externalTaskId && t.source === mapping.provider.type)
+        .filter((t) => isLinkedToMapping(t, mapping))
         .map((t) => [t.externalTaskId as string, t])
     );
 
@@ -392,8 +451,10 @@ export class TaskSyncManager {
             localTask,
             mappedExternalTask
           );
+          // The project is Fluid's: an update from the list mustn't move the
+          // task into the list's main project
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { tags, project, ...updateData } = mergedData;
+          const { tags, project, projectId, ...updateData } = mergedData;
 
           await prisma.task.update({
             where: { id: localTask.id },
@@ -420,7 +481,7 @@ export class TaskSyncManager {
           // DB-level unique constraint on external task identity.)
           const existing = await prisma.task.findFirst({
             where: {
-              projectId: mapping.projectId,
+              userId: mapping.provider.userId,
               source: mapping.provider.type,
               externalTaskId: externalTask.id,
             },
@@ -509,9 +570,7 @@ export class TaskSyncManager {
       // Step 1: Fetch tasks from both sources
       const localTasks = (
         await prisma.task.findMany({
-          where: {
-            projectId: mapping.projectId,
-          },
+          where: localTasksForMappingWhere(mapping),
           include: {
             tags: true,
             project: true,
@@ -530,13 +589,17 @@ export class TaskSyncManager {
       // We'll use localTaskByExternalId to find local tasks by their external ID
       const localTaskByExternalId = new Map(
         localTasks
-          .filter((t) => t.externalTaskId && t.source === mapping.provider.type)
+          .filter((t) => isLinkedToMapping(t, mapping))
           .map((t) => [t.externalTaskId as string, t])
       );
 
-      // Unlinked local tasks (tasks without external IDs that may need to be linked)
+      // Unlinked local tasks in this list's projects (may need to be linked
+      // or created in the list)
+      const projectIds = mappingProjectIds(mapping);
       let localUnlinkedTasks = localTasks.filter(
-        (task) => !task.externalTaskId || task.source !== mapping.provider.type
+        (task) =>
+          projectIds.includes(task.projectId ?? "") &&
+          (!task.externalTaskId || task.source !== mapping.provider.type)
       );
 
       // Step 2: Handle unsynced local changes first
@@ -736,6 +799,11 @@ export class TaskSyncManager {
         try {
           // Skip tasks that have a source set but not matching this provider
           if (localTask.source && localTask.source !== mapping.provider.type) {
+            continue;
+          }
+          // Already done and never in the list: nothing to sync, and adding
+          // a project to a list shouldn't copy its whole history into it
+          if (localTask.status === TaskStatus.COMPLETED) {
             continue;
           }
 
@@ -1226,8 +1294,10 @@ export class TaskSyncManager {
       );
 
       // Extract and remove nested objects that can't be used directly in the update
+      // The project is Fluid's: an update from the list mustn't move the task
+      // into the list's main project
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { tags, project, ...updateData } = mergedData;
+      const { tags, project, projectId, ...updateData } = mergedData;
 
       // Update local task with the merged data
       await prisma.task.update({

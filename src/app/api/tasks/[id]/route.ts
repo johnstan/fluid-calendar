@@ -11,6 +11,7 @@ import {
   deleteTaskBlockEvent,
   schedulePushTaskBlock,
 } from "@/lib/task-block-push";
+import { findMappingForProject } from "@/lib/task-sync/mapping-for-project";
 import {
   ChangeType,
   TaskChangeTracker,
@@ -194,11 +195,7 @@ export async function PUT(
     const targetProjectId = projectId || task.projectId;
 
     if (targetProjectId) {
-      const mapping = await prisma.taskListMapping.findFirst({
-        where: {
-          projectId: targetProjectId,
-        },
-      });
+      const mapping = await findMappingForProject(targetProjectId);
       if (mapping) {
         mappingId = mapping.id;
       }
@@ -307,11 +304,7 @@ export async function DELETE(
     // Check if the task belongs to a mapped project
     let mappingId = null;
     if (task.projectId) {
-      const mapping = await prisma.taskListMapping.findFirst({
-        where: {
-          projectId: task.projectId,
-        },
-      });
+      const mapping = await findMappingForProject(task.projectId);
       if (mapping) {
         mappingId = mapping.id;
       }

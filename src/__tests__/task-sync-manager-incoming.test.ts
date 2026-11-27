@@ -96,6 +96,7 @@ it.each(["new", "existing", "reopened"])(
             {
               id: "local-1",
               title: "Old title",
+              projectId: "proj-1",
               externalTaskId: "google-1",
               source: "GOOGLE",
               updatedAt: new Date(0),

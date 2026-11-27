@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Task sync: a task list can sync several projects (Settings → Task Sync → "Also sync these projects"). New tasks from the list go to its main project; each task keeps its own project in Fluid
 - Auto Schedule: new "Schedule Ahead" setting (1 week to 3 months, default 3 weeks). Tasks that fit in the coming week still go there first; others can now be planned further out instead of staying unscheduled
 - Calendar: ticking a task off in its popup now closes the popup straight away (it no longer reopens in the top-left corner)
 - Search (⌘K) now finds tasks and calendar events as well as commands: matches titles, descriptions and event locations. Picking a task opens its card on the Tasks page; picking an event opens that day on the calendar
@@ -123,6 +124,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Task sync no longer moves a task into the list's project when it changes in Google, and a task moved to another project stays linked instead of being deleted or imported twice. Completed tasks that were never in the list aren't copied into it
 - Typing a "?" in a text field (e.g. an event title) no longer opens the keyboard shortcuts list
 - Calendar on phones: the side panel can be closed again, with a close button in the panel or by tapping the dimmed calendar beside it (it used to cover the menu button)
 - Calendar loads much faster: it now loads only the dates on screen (plus two weeks either side) instead of every synced event. Search (⌘K) still searches all events, on the server

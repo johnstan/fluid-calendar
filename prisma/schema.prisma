@@ -610,6 +610,9 @@ model TaskListMapping {
   project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   externalListId   String // ID of the external task list
   externalListName String // Name of the external task list
+  // More projects whose tasks also sync to this list (projectId above is
+  // where new tasks from the list land)
+  extraProjectIds  String[]     @default([])
   direction        String       @default("incoming") // 'incoming', 'outgoing', 'bidirectional'
   isDefault        Boolean      @default(false)
   syncEnabled      Boolean      @default(true)

@@ -7,6 +7,7 @@ import { newDate } from "@/lib/date-utils";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { schedulePushTaskBlock } from "@/lib/task-block-push";
+import { findMappingForProject } from "@/lib/task-sync/mapping-for-project";
 import {
   ChangeType,
   TaskChangeTracker,
@@ -130,11 +131,7 @@ export async function POST(request: NextRequest) {
     // Find the project's task mapping if it exists
     let mappingId = null;
     if (taskData.projectId) {
-      const mapping = await prisma.taskListMapping.findFirst({
-        where: {
-          projectId: taskData.projectId,
-        },
-      });
+      const mapping = await findMappingForProject(taskData.projectId);
       if (mapping) {
         mappingId = mapping.id;
       }

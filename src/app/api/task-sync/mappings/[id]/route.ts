@@ -13,6 +13,8 @@ const mappingPatchSchema = z.object({
   projectId: z.string().uuid().optional(),
   direction: z.enum(["incoming", "outgoing", "bidirectional"]).optional(),
   isAutoScheduled: z.boolean().optional(),
+  // More projects whose tasks also sync to this list
+  extraProjectIds: z.array(z.string()).optional(),
 });
 
 /**
@@ -83,6 +85,7 @@ export async function GET(
         projectId: mapping.projectId,
         projectName: mapping.project.name,
         projectColor: mapping.project.color,
+        extraProjectIds: mapping.extraProjectIds,
         syncEnabled: mapping.syncEnabled,
         lastSyncedAt: mapping.lastSyncedAt,
         createdAt: mapping.createdAt,
@@ -155,6 +158,7 @@ export async function PATCH(
       projectId?: string;
       direction?: "incoming" | "outgoing" | "bidirectional";
       isAutoScheduled?: boolean;
+      extraProjectIds?: string[];
     };
 
     const updateData: UpdateData = {};
@@ -166,6 +170,46 @@ export async function PATCH(
     }
     if (validatedData.isAutoScheduled !== undefined) {
       updateData.isAutoScheduled = validatedData.isAutoScheduled;
+    }
+    if (validatedData.extraProjectIds !== undefined) {
+      const mainProjectId = validatedData.projectId ?? mapping.projectId;
+      const extraIds = Array.from(
+        new Set(validatedData.extraProjectIds)
+      ).filter((id) => id !== mainProjectId);
+
+      // Must be the user's own projects...
+      const owned = await prisma.project.count({
+        where: { id: { in: extraIds }, userId },
+      });
+      if (owned !== extraIds.length) {
+        return NextResponse.json(
+          { error: "Project not found or does not belong to the user" },
+          { status: 404 }
+        );
+      }
+      // ...and not already syncing with another list
+      const others = await prisma.taskListMapping.findMany({
+        where: { id: { not: mappingId }, provider: { userId } },
+        select: {
+          projectId: true,
+          extraProjectIds: true,
+          externalListName: true,
+        },
+      });
+      const clash = others.find(
+        (m) =>
+          extraIds.includes(m.projectId) ||
+          m.extraProjectIds.some((id) => extraIds.includes(id))
+      );
+      if (clash) {
+        return NextResponse.json(
+          {
+            error: `A project already syncs with the list "${clash.externalListName}"`,
+          },
+          { status: 409 }
+        );
+      }
+      updateData.extraProjectIds = extraIds;
     }
 
     // Update the mapping with only the provided fields

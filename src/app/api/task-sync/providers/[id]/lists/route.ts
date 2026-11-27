@@ -81,8 +81,15 @@ export async function GET(
       const { getGoogleTasksClient, GoogleTaskProvider } = await import(
         "@/lib/task-sync/providers/google-provider"
       );
-      const tasksClient = await getGoogleTasksClient(provider.account.id, provider.userId);
-      providerImpl = new GoogleTaskProvider(tasksClient, provider.account.id, provider.userId);
+      const tasksClient = await getGoogleTasksClient(
+        provider.account.id,
+        provider.userId
+      );
+      providerImpl = new GoogleTaskProvider(
+        tasksClient,
+        provider.account.id,
+        provider.userId
+      );
     } else if (provider.type === "CALDAV") {
       // Defense-in-depth: only use the account's CalDAV credentials if the
       // account is owned by this user and is a CalDAV account, so a provider
@@ -120,6 +127,7 @@ export async function GET(
         mappingId: mapping?.id,
         projectId: mapping?.projectId,
         projectName: mapping?.project?.name,
+        extraProjectIds: mapping?.extraProjectIds ?? [],
         lastSyncedAt: mapping?.lastSyncedAt,
         mappingDirection: mapping?.direction || "incoming",
       };

@@ -78,6 +78,7 @@ export async function GET(request: NextRequest) {
         projectId: mapping.projectId,
         projectName: mapping.project.name,
         projectColor: mapping.project.color,
+        extraProjectIds: mapping.extraProjectIds,
         syncEnabled: mapping.syncEnabled,
         lastSyncedAt: mapping.lastSyncedAt,
         createdAt: mapping.createdAt,
@@ -162,6 +163,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // A project syncs with one list only (as its main or an extra project)
+    const projectTaken = await prisma.taskListMapping.findFirst({
+      where: {
+        provider: { userId },
+        OR: [
+          { projectId: validatedData.projectId },
+          { extraProjectIds: { has: validatedData.projectId } },
+        ],
+      },
+      select: { externalListName: true },
+    });
+    if (projectTaken) {
+      return NextResponse.json(
+        {
+          error: `This project already syncs with the list "${projectTaken.externalListName}"`,
+        },
+        { status: 409 }
+      );
+    }
+
     // Create the mapping
     const mapping = await prisma.taskListMapping.create({
       data: {
@@ -199,6 +220,7 @@ export async function POST(request: NextRequest) {
         projectId: mapping.projectId,
         projectName: mapping.project.name,
         projectColor: mapping.project.color,
+        extraProjectIds: mapping.extraProjectIds,
         syncEnabled: mapping.syncEnabled,
         lastSyncedAt: mapping.lastSyncedAt,
         direction: mapping.direction,
